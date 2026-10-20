@@ -39,11 +39,6 @@
 .notification-new-badge {
   margin-left: 8px;
 }
-.notification-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
 .attendance-choice-active {
   box-shadow: 0 0 0 3px #006da833;
 }
@@ -1113,25 +1108,6 @@
 .response-receipt-materials > b {
   font-size: 13px;
 }
-.response-receipt-response {
-  display: grid;
-  gap: 8px;
-  padding: 0 0 14px;
-  border-bottom: 1px solid #d7e2e8;
-}
-.response-receipt-response:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
-}
-.response-receipt-response > b {
-  color: #243746;
-  font-size: 14px;
-}
-.response-receipt-label {
-  color: #536778;
-  font-size: 13px;
-  font-weight: 600;
-}
 .response-receipt-materials ul {
   display: grid;
   gap: 5px;
@@ -1374,58 +1350,6 @@
   color: #fff;
   background: var(--blue);
 }
-.process-route-banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  margin: -4px 0 18px;
-  padding: 10px 12px;
-  border: 1px solid #bdd7e8;
-  border-left: 3px solid var(--blue);
-  border-radius: 5px;
-  color: #164f70;
-  background: #f3f9fc;
-  font-size: 12px;
-}
-.process-route-banner-label {
-  color: var(--muted);
-  font-weight: 600;
-}
-.process-route-banner-muted {
-  border-color: var(--line-soft);
-  border-left-color: #8aa8b8;
-  color: var(--muted);
-  background: #fafcfd;
-}
-.process-repeat-hearing-banner {
-  border-color: #e5c98c;
-  border-left-color: #b77b08;
-  color: #704d00;
-  background: #fff9e9;
-}
-.link-button {
-  padding: 0;
-  border: 0;
-  color: var(--blue);
-  background: transparent;
-  font: inherit;
-  font-weight: 700;
-  text-decoration: underline;
-  cursor: pointer;
-}
-.request-route-chip {
-  display: inline-flex;
-  align-items: center;
-  width: fit-content;
-  margin: -2px 0 2px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: #0f5d84;
-  background: #e7f3fa;
-  font-size: 12px;
-  font-weight: 700;
-}
 .consideration-task,
 .consideration-entry {
   display: flex;
@@ -1476,9 +1400,6 @@
   font-size: 12px;
   line-height: 1.5;
   margin-top: 10px;
-}
-.request-responses-panel {
-  margin-top: 14px;
 }
 .request-response-status-list {
   display: grid;
@@ -1556,14 +1477,6 @@
   color: var(--muted);
   font-size: 12px;
 }
-.request-response-dates {
-  display: grid;
-  flex: 1 1 185px;
-  gap: 2px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
-}
 .request-status-owner {
   margin: 14px 0 0;
   color: var(--muted);
@@ -1583,24 +1496,6 @@
 }
 .response-received { color: #177846; background: #e8f6ec; }
 .response-pending { color: #8f5d00; background: #fff4d8; }
-.request-response-status-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
-  flex: 0 0 auto;
-}
-.request-response-status-actions .response-received,
-.request-response-status-actions .response-pending {
-  margin-left: 0;
-}
-.request-response-action {
-  flex: 0 0 auto;
-  min-height: 32px;
-  padding: 6px 10px;
-  font-size: 12px;
-  white-space: nowrap;
-}
 .response-status-dot {
   width: 6px;
   height: 6px;
@@ -1673,20 +1568,8 @@
   .request-response-heading { flex-direction: column; gap: 8px; }
   .request-response-status-list li { align-items: flex-start; flex-wrap: wrap; }
   .request-response-recipient { flex: 1 1 calc(100% - 36px); }
-  .request-response-dates { margin-left: 36px; }
   .response-received,
   .response-pending { margin-left: 36px; }
-  .request-response-status-actions {
-    align-items: flex-start;
-    flex-wrap: wrap;
-    margin-left: 36px;
-  }
-  .request-response-status-actions .response-received,
-  .request-response-status-actions .response-pending,
-  .request-response-status-actions .request-response-action {
-    margin-left: 0;
-  }
-  .request-response-action { margin-left: 36px; }
   .consideration-stages {
     grid-template-columns: 1fr;
     gap: 5px;
