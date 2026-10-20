@@ -5,7 +5,6 @@ import { OUTCOMES } from "../../data/constants";
 import { addWorkdays, filingDeadline } from "./services/deadlines";
 import { disputed } from "./services/decisions";
 import { controlDecisions } from "./services/workflow";
-import { hasSubjectSaqCabinet, subjectSaqCabinetLabel } from "./services/saqCabinets";
 
 export interface FormField {
   name: string;
@@ -103,18 +102,9 @@ const REQUEST_RECIPIENT_OPTIONS = [
   ["ДВГА по области Абай", "ДВГА по области Абай"],
 ] as const satisfies FormField["options"];
 
-const EXTERNAL_REQUEST_PATH_OPTIONS = [
-  ["", "Выберите путь направления"],
-  ["E-Otinish", "E-Otinish"],
-  ["СЭД", "СЭД"],
-  ["Портал / цифровая система", "Портал / цифровая система"],
-  ["Почтовая связь", "Почтовая связь"],
-  ["Вручение нарочно", "Вручение нарочно"],
-] as const satisfies FormField["options"];
-
 const SAQ_RECIPIENT_OPTIONS = [
   ["", "Выберите получателя SAQ"],
-  ["subject", "Кабинет Объекта SAQ"],
+  ["subject", "Кабинет Объекта"],
 ] as const satisfies FormField["options"];
 
 const RECOMMENDATION_RECIPIENT_OPTIONS = [
@@ -131,29 +121,6 @@ const WORK_EXECUTOR_OPTIONS = [
   ["Эксперт ДАВГА", "Эксперт ДАВГА"],
 ] as const satisfies FormField["options"];
 
-export function requiresConclusion(c: ObjectionCase) {
-  const appealType = (c.appealType || "").trim();
-  return (
-    appealType === "Возражение на уведомление" ||
-    appealType === "Возражение на уведомления" ||
-    (!appealType && c.type === "notice")
-  );
-}
-
-function requiresMotivatedResponse(c: ObjectionCase) {
-  const appealType = (c.appealType || "").trim();
-  return (
-    appealType.startsWith("Жалоба") ||
-    appealType === "Заявление" ||
-    appealType === "Возражение на аудиторский отчет" ||
-    appealType === "Возражение на аудиторский отчёт"
-  );
-}
-
-function defaultDecisionProjectChannel(c: ObjectionCase) {
-  return hasSubjectSaqCabinet(c) ? "saq" : "external";
-}
-
 export function actionForm(
   action: Action,
   c: ObjectionCase,
@@ -164,16 +131,10 @@ export function actionForm(
   const day = input("date", "Дата действия", date, "date");
   let fields: FormField[] =
     action === "request" ||
-    action === "request-saq" ||
+    action === "request-other" ||
     action === "vote" ||
     action === "analysis" ||
     action === "assign-work-executor" ||
-    action === "send-decision-project-eotinish" ||
-    action === "record-decision-project-delivery" ||
-    action === "record-final-response-delivery" ||
-    action === "submit-decision-project-comment" ||
-    action === "record-external-decision-project-comment" ||
-    action === "proceed-to-final-response" ||
     action === "commission-vote" ||
     action === "fill-meeting-certificate" ||
     action === "edit-certificate"
@@ -182,28 +143,6 @@ export function actionForm(
   let title = "Действие по обращению";
   let note = "";
   switch (action) {
-    case "start-analysis-additional-request":
-      title = "Направить дополнительный запрос по результатам анализа";
-      fields.push(
-        area(
-          "reason",
-          "Причина необходимости направления дополнительного запроса",
-        ),
-      );
-      note =
-        "После сохранения обращение будет переведено на этап «Запрос» с подэтапом «Дополнительный запрос по результатам анализа».";
-      break;
-    case "start-commission-additional-request":
-      title = "Направить дополнительный запрос по решению Апелляционной комиссии";
-      fields.push(
-        area(
-          "reason",
-          "Причина необходимости направления дополнительного запроса",
-        ),
-      );
-      note =
-        "Заседание будет отложено. После получения ответа будет обновлена справка и назначено дополнительное заседание.";
-      break;
     case "assign-work-executor":
       title = "Выбрать исполнителя рабочего органа";
       fields.push(
@@ -272,69 +211,34 @@ export function actionForm(
         ),
         deadline,
         {
-          ...input(
-            "executor",
-            "Исполнитель",
-            values.executor || DEMO_USER.fullName,
-          ),
+          ...input("executor", "Исполнитель", values.executor || DEMO_USER.fullName),
           readOnly: true,
         },
       );
       break;
-    case "request-saq":
-      title = "Сформировать запрос в кабинет SAQ";
+    case "request-other":
+      title = "Сформировать запрос в другой орган";
       fields.push(
+        input("recipient", "Кому направить запрос", values.recipient || ""),
         select(
           "saqRecipient",
           "Получатель SAQ",
           SAQ_RECIPIENT_OPTIONS,
           values.saqRecipient || "",
         ),
-        area(
-          "customRequestText",
-          "Текст запроса",
-          values.customRequestText || "",
-        ),
+        area("customRequestText", "Текст запроса", values.customRequestText || ""),
       );
-      break;
-    case "request-other":
-      title = "Зафиксировать запрос через другую систему";
-      fields[0] = input("date", "Дата направления запроса", date, "date");
-      fields.push(
-        input("recipient", "Кому направлен запрос", values.recipient || ""),
-        input(
-          "registrationNumber",
-          "Номер регистрации запроса",
-          values.registrationNumber || "",
-        ),
-        select(
-          "deliveryPath",
-          "Путь направления запроса",
-          EXTERNAL_REQUEST_PATH_OPTIONS,
-        ),
-      );
-      note =
-        "Укажите реквизиты запроса, направленного во внешней системе в орган без кабинета SAQ.";
       break;
     case "send-request-approval":
       title = "Отправить запрос на согласование";
       note =
-        "Запрос и приложение будут направлены заместителю директора ДАВГА для согласования.";
+        "Запрос и приложение будут направлены директору ДАВГА для согласования.";
       break;
     case "approve-request":
       title = "Согласование запроса";
-      fields.push(
-        select(
-          "requestId",
-          "Запрос",
-          c.requests
-            .filter((request) => !request.sent && !request.approved)
-            .map((request) => [request.id, `Запрос в ${request.recipient}`]),
-        ),
-        check("approved", "Запрос и приложение согласованы"),
-      );
+      fields.push(check("approved", "Запрос и приложение согласованы"));
       note =
-        "Согласуйте каждый сформированный запрос отдельно. После согласования всех запросов они будут направлены директору ДАВГА для подписания.";
+        "После согласования запрос в ДВГА/КВГА будет направлен в их кабинет для подготовки мотивированного ответа.";
       break;
     case "fill-request-response":
       title = "Ответ ДВГА/КВГА на запрос";
@@ -343,7 +247,7 @@ export function actionForm(
           !request.responded &&
           (request.recipient.toUpperCase().includes("ДВГА") ||
             request.recipient.toUpperCase().includes("КВГА")) &&
-          ((role !== "dvga" && role !== "kvga") ||
+          (role !== "dvga" && role !== "kvga" ||
             (role === "kvga"
               ? request.recipient.toUpperCase().includes("КВГА")
               : request.recipient.toUpperCase().includes("ДВГА"))),
@@ -369,41 +273,15 @@ export function actionForm(
       note =
         "Вложите все полученные от адресата документы и сохраните подтверждение поступления ответа.";
       break;
-    case "record-external-response":
-      title = "Вложить ответ другого органа";
-      fields[0] = input("date", "Дата получения ответа", date, "date");
-      fields.push(
-        select(
-          "externalRequestId",
-          "Запрос другого органа",
-          c.requests
-            .filter(
-              (request) =>
-                request.template === "other" &&
-                !request.saqRecipient &&
-                Boolean(request.sent) &&
-                !request.responded,
-            )
-            .map((request) => [request.id, `Запрос в ${request.recipient}`]),
-        ),
-        input("responseRegistrationNumber", "Номер письма ответа"),
-      );
-      note =
-        "Вложите полученный ответ. Общий этап обращения не изменится, пока не поступят ответы по остальным запросам.";
-      break;
     case "subject-response":
       title = "Направить ответ";
-      note =
-        "Вложите ответ на запрос. После отправки он поступит в кабинет рабочего органа.";
+      note = "Вложите ответ на запрос. После отправки он поступит в кабинет рабочего органа.";
       break;
     case "analysis":
       title = "Сформировать справку";
       for (const point of disputed(c)) {
         fields.push(
-          heading(
-            `davgaArgumentsHeading_${point.id}`,
-            `Оспариваемый пункт ${point.number}`,
-          ),
+          heading(`davgaArgumentsHeading_${point.id}`, `Оспариваемый пункт ${point.number}`),
           area(
             `davgaArguments_${point.id}`,
             "Доводы ДАВГА",
@@ -551,7 +429,8 @@ export function actionForm(
       break;
     case "commission-vote":
       title = "Проголосовать";
-      note = "Выберите результат голосования по каждому оспариваемому пункту.";
+      note =
+        "Выберите результат голосования по каждому оспариваемому пункту.";
       break;
     case "fill-meeting-certificate":
       title = "Заполнить справку";
@@ -618,331 +497,75 @@ export function actionForm(
       break;
     case "create-decision-project":
     case "deliver":
-      if (requiresConclusion(c)) {
+      if (c.type === "notice") {
         title = "Вложить заключение";
         fields.push(
           input("conclusionRegistrationDate", "Дата регистрации", date, "date"),
-          input("conclusionRegistrationNumber", "Номер регистрации", ""),
+          input(
+            "conclusionRegistrationNumber",
+            "Номер регистрации",
+            "",
+          ),
         );
-        note =
-          "Вложите заключение по обращению. После сохранения станет доступно закрытие рассмотрения.";
+        note = "Вложите заключение по обращению. После сохранения станет доступно закрытие рассмотрения.";
         break;
       }
       title =
         action === "create-decision-project"
           ? "Сформировать проект решения"
-          : requiresMotivatedResponse(c)
-            ? "Сформировать мотивированный ответ"
-            : "Сформировать окончательный ответ";
-      if (action === "create-decision-project") {
-        const defaultChannel = defaultDecisionProjectChannel(c);
-        const subjectCabinetAvailable = hasSubjectSaqCabinet(c);
-        fields.push(
-          heading("projectRouting", "Направление после подписания"),
-          {
-            name: "subjectCabinetStatus",
-            label: "Проверка кабинета заявителя",
-            type: "text",
-            value: subjectSaqCabinetLabel(c),
-            required: false,
-            readOnly: true,
-          },
-          select(
-            "projectSubjectChannel",
-            "Направить заявителю",
-            subjectCabinetAvailable
-              ? [
-                  ["saq", "В кабинет SAQ"],
-                  ["external", "Через другую систему"],
-                ]
-              : [["external", "Через другую систему"]],
-            defaultChannel,
-          ),
-        );
-        if (!subjectCabinetAvailable)
-          note =
-            "Кабинет заявителя в SAQ не найден. После подписания зафиксируйте внешнее направление: дату, способ, регистрационный номер и подтверждающий файл.";
-      }
-      if (action === "deliver" && requiresMotivatedResponse(c)) {
-        const subjectCabinetAvailable = hasSubjectSaqCabinet(c);
-        const selectedChannel = c.motivatedResponseRouting?.recipients.find(
-          (recipient) => recipient.id === "applicant",
-        )?.channel;
-        fields.push(
-          heading("motivatedResponseRouting", "Направление заявителю после подписания"),
-          {
-            name: "motivatedResponseApplicantCabinetStatus",
-            label: "Проверка кабинета заявителя",
-            type: "text",
-            value: subjectSaqCabinetLabel(c),
-            required: false,
-            readOnly: true,
-          },
-          select(
-            "motivatedResponseApplicantChannel",
-            "Направить заявителю",
-            subjectCabinetAvailable
-              ? [
-                  ["saq", "В кабинет SAQ"],
-                  ["external", "Через другую систему"],
-                ]
-              : [["external", "Через другую систему"]],
-            selectedChannel === "external" || !subjectCabinetAvailable
-              ? "external"
-              : "saq",
-          ),
-        );
-        if (!subjectCabinetAvailable)
-          note =
-            "Кабинет заявителя в SAQ не найден. После подписи зафиксируйте внешнее направление: дату, способ или систему, исходящий номер (ID) и файл-подтверждение.";
-      }
-      if (action === "deliver" && !requiresMotivatedResponse(c))
-        fields.push(input("number", "Исходящий номер", "ИСХ-" + c.id));
-      if (action === "deliver" && !requiresMotivatedResponse(c))
-        fields.push(
-          select("channel", "Канал доставки", [
-            ["eotinish", "E-Otinish"],
-            ["cabinet", "Кабинет SAQ"],
-            ["sed", "СЭД"],
-            ["post", "Почта"],
-          ]),
-        );
+          : "Сформировать окончательный ответ";
+      fields.push(
+        input("number", "Исходящий номер", "ИСХ-" + c.id),
+        select(
+          "channel",
+          "Канал доставки",
+        [
+          ["eotinish", "E-Otinish"],
+          ["cabinet", "Кабинет SAQ"],
+          ["sed", "СЭД"],
+          ["post", "Почта"],
+        ],
+        ),
+        input("receipt", "Квитанция отправки", "КВ-" + c.id),
+      );
       note =
         action === "create-decision-project"
-          ? note || "Проект решения формируется по той же печатной форме, что и окончательный ответ. После сохранения он будет направлен на согласование и подписание."
+          ? "Проект решения формируется по той же печатной форме, что и окончательный ответ. После сохранения он будет направлен на согласование и подписание."
           : c.type === "control"
-            ? "Статья 100 АППК: письменный результат заявителю и копия органу. Вручение фиксируется отдельно после направления."
-            : requiresConclusion(c)
-              ? "Оформление — 2 рабочих дня с решения; публикация закупочного решения — 1 рабочий день после направления. Для уведомления формируется заключение по структуре приложения 7. Вручение фиксируется отдельно."
-            : "Оформление — 2 рабочих дня с решения; публикация закупочного решения — 1 рабочий день после направления. После формирования мотивированный ответ направляется на согласование и подписание.";
-      break;
-    case "send-decision-project-eotinish":
-      title = "Назначить заслушивание";
-      fields.push(
-        input(
-          "hearingDateTime",
-          "Дата и время заслушивания",
-          `${date}T09:00`,
-          "datetime-local",
-        ),
-        input("hearingLocation", "Место или формат проведения заслушивания"),
-        select("hearingNoticeChannel", "Канал отправки уведомления", [
-          ["eotinish", "E-Otinish"],
-          ["portal", "Веб-портал"],
-          ["digital", "Цифровая система"],
-          ["saq", "Кабинет SAQ"],
-          ["other", "Другое"],
-        ]),
-        input(
-          "hearingNoticeDate",
-          "Дата направления уведомления",
-          date,
-          "date",
-        ),
-      );
-      note =
-        "Если выбран кабинет SAQ, извещение будет автоматически направлено в кабинет заявителя.";
-      break;
-    case "hearing-after-decision-project":
-      title = "Заслушивание проведено";
-      if ((c.appealType || "").trim() === "Заявление") {
-        fields.push(
-          select(
-            "hearingOutcome",
-            "Дальнейшее действие",
-            [
-              ["", "Выберите действие"],
-              [
-                "additional-request",
-                "Новые доводы требуют дополнительного запроса",
-              ],
-              ["without-request", "Новые доводы не требуют запроса"],
-              ["proceed", "Перейти на следующий этап"],
-            ],
-            values.hearingOutcome || "",
-          ),
-        );
-        if (
-          values.hearingOutcome === "additional-request" ||
-          values.hearingOutcome === "without-request"
-        ) {
-          disputed(c).forEach((point) => {
-            const field = area(
-              `additionalArgument_${point.id}`,
-              `Дополнительные доводы объекта гос. аудита (заявителя) по пункту ${point.number}`,
-              values[`additionalArgument_${point.id}`] || "",
-            );
-            field.required = false;
-            fields.push(field);
-          });
-          fields.push(
-            area(
-              values.hearingOutcome === "additional-request"
-                ? "additionalRequestReason"
-                : "noRequestReason",
-              values.hearingOutcome === "additional-request"
-                ? "Причина необходимости дополнительного запроса"
-                : "Обоснование отсутствия необходимости в дополнительном запросе",
-              values[
-                values.hearingOutcome === "additional-request"
-                  ? "additionalRequestReason"
-                  : "noRequestReason"
-              ] || "",
-            ),
-          );
-        }
-        note =
-          "Вложите протокол проведённого заслушивания. Выберите дальнейшее действие. При выборе дополнительного запроса или возврата к справке укажите новые доводы и обоснование.";
-      } else {
-        note =
-          "Вложите протокол проведённого заслушивания. После сохранения обращение перейдёт к формированию мотивированного ответа.";
-      }
-      break;
-    case "record-decision-project-delivery":
-      title = "Зафиксировать направление проекта решения заявителю";
-      fields.push(
-        input("projectSentDate", "Дата отправки", date, "date"),
-        select(
-          "projectDeliveryPath",
-          "Способ отправки",
-          EXTERNAL_REQUEST_PATH_OPTIONS,
-        ),
-        {
-          name: "projectRegistrationNumber",
-          label: "Регистрационный номер",
-          type: "text",
-          required: false,
-        },
-      );
-      note =
-        "Укажите реквизиты внешнего направления заявителю. Срок для замечаний рассчитывается от даты направления.";
-      break;
-    case "submit-decision-project-comment":
-      title = "Направить замечание к проекту решения";
-      fields.push(area("projectComment", "Замечание к проекту решения"));
-      note =
-        "Замечание будет направлено рабочему органу и станет основанием для назначения заслушивания.";
-      break;
-    case "record-external-decision-project-comment":
-      title = "Зафиксировать замечание к проекту решения";
-      fields.push(
-        input(
-          "projectCommentReceivedAt",
-          "Дата поступления замечания",
-          date,
-          "date",
-        ),
-        select(
-          "projectCommentChannel",
-          "Канал поступления",
-          EXTERNAL_REQUEST_PATH_OPTIONS,
-        ),
-        {
-          name: "projectCommentRegistrationNumber",
-          label: "Регистрационный номер",
-          type: "text",
-          required: false,
-        },
-        area("projectComment", "Замечание к проекту решения"),
-      );
-      note =
-        "Вложение файла необязательно. После фиксации станет доступно назначение заслушивания.";
-      break;
-    case "proceed-to-final-response":
-      title = "Перейти на этап «Мотивированный ответ»";
-      fields.push(area("reason", "Причина перехода"));
-      note =
-        "Переход доступен в любой момент независимо от поступления замечания к проекту решения. Срок ожидания замечаний сохраняется — 2 рабочих дня.";
+          ? "Статья 100 АППК: письменный результат заявителю и копия органу. Вручение фиксируется отдельно после направления."
+          : "Оформление — 2 рабочих дня с решения; публикация закупочного решения — 1 рабочий день после направления. Для уведомления формируется заключение по структуре приложения 7. Вручение фиксируется отдельно.";
       break;
     case "close-review":
       title = "Завершить рассмотрение";
-      note =
-        "Заключение по обращению вложено. Подтвердите завершение рассмотрения.";
+      note = "Заключение по обращению вложено. Подтвердите завершение рассмотрения.";
       break;
     case "approve-final-response":
       title = "Согласовать ответ";
       note = "Проверьте окончательный ответ и согласуйте его для подписания.";
       break;
     case "sign-final-response":
-      title = requiresMotivatedResponse(c)
-        ? "Подписать мотивированный ответ"
-        : "Подписать ответ";
-      note = requiresMotivatedResponse(c)
-        ? "После подписи ответ автоматически поступит в доступные кабинеты SAQ заявителя и объекта аудита. При внешнем направлении рабочий орган фиксирует отправку только заявителю."
-        : "Подпишите согласованный окончательный ответ.";
+      title = "Подписать ответ";
+      note = "Подпишите согласованный окончательный ответ.";
       break;
-    case "record-final-response-delivery": {
-      title = "Зафиксировать направление мотивированного ответа";
-      const recipients = (c.motivatedResponseRouting?.recipients || [])
-        .filter(
-          (recipient) =>
-            recipient.id === "applicant" &&
-            recipient.channel === "external" &&
-            recipient.status === "pending",
-        )
-        .map(
-          (recipient) =>
-            [
-              recipient.id,
-              `${recipient.recipient}${recipient.identifier ? ` (${recipient.identifier})` : ""}`,
-            ] as const,
-        );
-      fields.push(
-        select(
-          "motivatedResponseRecipient",
-          "Кому направлен мотивированный ответ",
-          recipients,
-        ),
-        input(
-          "motivatedResponseSentAt",
-          "Дата отправки",
-          date,
-          "date",
-        ),
-        select(
-          "motivatedResponseDeliveryPath",
-          "Способ / система направления",
-          EXTERNAL_REQUEST_PATH_OPTIONS,
-        ),
-        {
-          name: "motivatedResponseRegistrationNumber",
-          label: "Исходящий номер или ID отправки",
-          type: "text",
-          required: false,
-        },
-      );
-      note =
-        "Зафиксируйте направление заявителю через другую систему и приложите файл-подтверждение отправки.";
-      break;
-    }
     case "send-recommendations":
       title = "Направить рекомендации";
       fields.push(
-        select(
-          "recommendationChannel",
-          "Способ направления",
-          [
-            ["saq", "В кабинет SAQ"],
-            ["external", "Через другую систему"],
-          ],
-          "saq",
-        ),
-        input(
-          "recommendationDueDate",
-          "Срок исполнения рекомендации",
-          addWorkdays(date, 30),
-          "date",
-        ),
+        {
+          name: "recommendationRecipients",
+          label: "Кому направить рекомендацию",
+          type: "select",
+          options: RECOMMENDATION_RECIPIENT_OPTIONS,
+          multiple: true,
+          required: true,
+        },
         area(
           "recommendationText",
           "Текст рекомендации",
-          c.meeting?.recommendations === "—"
-            ? ""
-            : c.meeting?.recommendations || "",
+          c.meeting?.recommendations === "—" ? "" : c.meeting?.recommendations || "",
         ),
       );
       note =
-        "Текст перенесён из протокола и при необходимости может быть изменён. Для каждого адресата создаётся отдельная рекомендация.";
+        "Выберите один или несколько кабинетов SAQ. Текст перенесён из протокола и при необходимости может быть изменён.";
       break;
     case "receipt":
       title = "Подтверждение вручения результата";
@@ -1069,22 +692,18 @@ export function actionForm(
     submit:
       action === "edit-certificate"
         ? "Сохранить"
-        : action === "approve-request"
-          ? "Согласовать запрос"
-          : action === "analysis"
-            ? "Сформировать справку"
-            : action === "create-decision-project"
-              ? "Сформировать проект решения"
-              : action === "deliver"
-                ? requiresConclusion(c)
-                  ? "Вложить заключение"
-                : requiresMotivatedResponse(c)
-                  ? "Сформировать мотивированный ответ"
-                  : "Сформировать окончательный ответ"
-                : action === "close-review"
-                  ? "Завершить рассмотрение"
-                  : action === "send-recommendations"
-                    ? "Направить уведомление"
-                    : "Зафиксировать действие",
+        : action === "analysis"
+          ? "Сформировать справку"
+        : action === "create-decision-project"
+        ? "Сформировать проект решения"
+        : action === "deliver"
+        ? c.type === "notice"
+          ? "Вложить заключение"
+          : "Сформировать окончательный ответ"
+        : action === "close-review"
+          ? "Завершить рассмотрение"
+          : action === "send-recommendations"
+            ? "Направить уведомление"
+          : "Зафиксировать действие",
   };
 }
