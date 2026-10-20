@@ -1,9 +1,22 @@
 export const STEPS = [
-  ["received", "Приём"],
-  ["accepted", "Запрос"],
-  ["materials", "Анализ обращения"],
-  ["commission_voting", "Заседание"],
-  ["meeting", "Решение"],
-  ["delivered", "Исполнение"],
+  ["received", "Поступление"],
+  ["accepted", "Допустимость и компетенция"],
+  ["requested", "Позиция ДВГА"],
+  ["materials", "Справка по доводам"],
+  ["circulated", "Позиции членов комиссии"],
+  ["hearing", "Заслушивание"],
+  ["meeting", "Заседание и голосование"],
+  ["protocol", "Протокол и решение"],
+  ["delivered", "Направление результата"],
+  ["completed", "Исполнение"],
 ] as const;
-export const CONTROL_STEPS = STEPS;
+export const CONTROL_STEPS = [
+  ["received", "Поступление"],
+  ["accepted", "Компетенция и регистрация"],
+  ["forwarded", "Передача вышестоящему органу"],
+  ["materials", "Изучение административного дела"],
+  ["hearing", "Заслушивание сторон"],
+  ["decided", "Решение по жалобе"],
+  ["delivered", "Направление результата"],
+  ["completed", "Исполнение"],
+] as const;

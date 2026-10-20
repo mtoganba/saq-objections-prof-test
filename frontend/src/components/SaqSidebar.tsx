@@ -7,7 +7,6 @@ const SIDEBAR_STORAGE_KEY = "saq.objections.sidebar.collapsed.v1";
 export type SaqNavigationItem = {
   page: Page;
   label: string;
-  badge?: number;
   active: boolean;
   onClick: () => void;
 };
@@ -99,15 +98,7 @@ export default function SaqSidebar({
                 title={item.label}
               >
                 <Icon name={item.page} />
-                <span className="saq-nav-label">{item.label}</span>
-                {!!item.badge && (
-                  <span
-                    className="saq-nav-badge"
-                    aria-label={`Непрочитанные уведомления: ${item.badge}`}
-                  >
-                    {item.badge}
-                  </span>
-                )}
+                <span>{item.label}</span>
               </button>
             ))}
           </div>
@@ -117,3 +108,4 @@ export default function SaqSidebar({
     </aside>
   );
 }
+

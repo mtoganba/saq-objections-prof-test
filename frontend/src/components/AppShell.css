@@ -156,20 +156,6 @@
   height: 19px;
   flex: none;
 }
-.saq-nav-badge {
-  min-width: 20px;
-  height: 20px;
-  margin-left: auto;
-  display: inline-grid;
-  place-items: center;
-  padding: 0 5px;
-  color: #fff;
-  background: #d94343;
-  border-radius: 10px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-}
 .saq-module-menu button:hover {
   color: var(--blue);
   background: #f1f6f9;
@@ -309,25 +295,6 @@
 .saq-demo-controls .date-control {
   padding: 6px 8px;
 }
-.commission-member-control {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.commission-member-control > span {
-  flex: none;
-  color: #627187;
-  font-size: 13px;
-}
-.commission-member-control select {
-  width: min(420px, 38vw);
-  padding: 6px 30px 6px 8px;
-}
-.saq-demo-controls button.date-control {
-  cursor: pointer;
-  font: inherit;
-}
 .saq-demo-controls > .text-button {
   margin-left: auto;
 }
@@ -415,7 +382,7 @@
   .saq-sidebar.collapsed .saq-brand > span,
   .saq-sidebar.collapsed .saq-navigation-caption,
   .saq-sidebar.collapsed .saq-module-button > span:not(.saq-module-mark),
-  .saq-sidebar.collapsed .saq-module-menu button > .saq-nav-label,
+  .saq-sidebar.collapsed .saq-module-menu button > span,
   .saq-sidebar.collapsed .saq-sidebar-version {
     display: none;
   }
@@ -513,12 +480,6 @@
   .saq-demo-controls .role-control select {
     max-width: 100%;
     font-size: 14px;
-  }
-  .commission-member-control {
-    width: 100%;
-  }
-  .commission-member-control select {
-    width: min(100%, 420px);
   }
   .saq-demo-controls > .text-button {
     margin-left: 0;

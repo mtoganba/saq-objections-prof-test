@@ -1,0 +1,144 @@
+.consideration-task-action .button + .button {
+  margin-top: 10px;
+}
+
+/*
+ * Запрос в другой орган.
+ * Наличие custom-текста переключает существующий DocumentContent на макет
+ * предоставленного Word-шаблона. Шапка взята непосредственно из шаблона.
+ */
+.request-template:has(.request-template-body.custom) {
+  box-sizing: border-box;
+  min-height: 850px;
+  padding: 28px 54px 62px;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.25;
+}
+
+.request-template:has(.request-template-body.custom) .request-template-header {
+  display: block;
+  width: 100%;
+  aspect-ratio: 560 / 185;
+  min-height: 0;
+  padding: 0;
+  background: url("/minfin-letterhead.svg") center top / contain no-repeat;
+  color: transparent;
+  font-size: 0;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-header
+  > * {
+  display: none;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-header::after {
+  display: none;
+  content: none;
+}
+
+.request-template:has(.request-template-body.custom) .request-template-line {
+  position: relative;
+  width: 39%;
+  height: 44px;
+  margin: 2px 0 22px;
+  background: none;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-line::before {
+  content: "№ ____________________\A______________________";
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: #6e98aa;
+  font-family: Arial, sans-serif;
+  font-size: 9px;
+  line-height: 1.8;
+  white-space: pre;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-recipient {
+  width: 49%;
+  margin: 0 0 42px auto !important;
+  font-size: 17px !important;
+  line-height: 1.2;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-body.custom {
+  min-height: 160px;
+  margin: 0 0 50px !important;
+  font-size: 16px !important;
+  line-height: 1.35;
+  text-align: left;
+  text-indent: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-body.custom
+  + p {
+  display: none;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-signature {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(170px, 0.8fr);
+  gap: 28px;
+  align-items: end;
+  margin-top: 36px;
+  font-size: 0;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-signature
+  > * {
+  display: none;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-signature::before,
+.request-template:has(.request-template-body.custom)
+  .request-template-signature::after {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.18;
+  white-space: pre-line;
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-signature::before {
+  content: "Ішкі мемлекеттік аудит\Aбойынша апелляция\Aдепартаментінің директоры";
+}
+
+.request-template:has(.request-template-body.custom)
+  .request-template-signature::after {
+  content: "Ш. Күреңбек тегі";
+  text-align: right;
+}
+
+.request-template:has(.request-template-body.custom)::after {
+  content: "Орын.: Жукенов К.А.\AТел.: 00-00-00";
+  display: block;
+  margin-top: 52px;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  font-style: italic;
+  line-height: 1.25;
+  white-space: pre;
+}
+
+@media (max-width: 720px) {
+  .request-template:has(.request-template-body.custom) {
+    padding: 22px 28px 44px;
+  }
+}

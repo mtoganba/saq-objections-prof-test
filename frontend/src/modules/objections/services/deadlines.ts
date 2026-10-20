@@ -1,4 +1,4 @@
-import type { ObjectionCase, Role } from "../../../types";
+import type { ObjectionCase } from "../../../types";
 export const holidays = ["2026-08-31", "2026-10-26", "2026-12-16"];
 export function dateObject(s: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s || ""))
@@ -21,16 +21,6 @@ export function addWorkdays(s: string, n: number) {
   let left = n;
   while (left) {
     d.setUTCDate(d.getUTCDate() + 1);
-    if (isWorkday(iso(d))) left--;
-  }
-  return iso(d);
-}
-export function subtractWorkdays(s: string, n: number) {
-  const d = dateObject(s);
-  if (n < 0 || !Number.isInteger(n)) throw Error("Неверный срок");
-  let left = n;
-  while (left) {
-    d.setUTCDate(d.getUTCDate() - 1);
     if (isWorkday(iso(d))) left--;
   }
   return iso(d);
@@ -68,123 +58,20 @@ export function filingDeadline(c: ObjectionCase) {
 
 export function reviewDuration(c: ObjectionCase) {
   if (c.appealType === "Возражение на аудиторский отчет") return 30;
+  if (c.appealType === "Жалоба на действие/бездействие") return 20;
+  if (c.appealType === "Заявление") return 15;
   if (
-    [
-      "Жалоба на уведомление",
-      "Жалоба на решение КВГА/ДВГА",
-      "Жалоба на действие/бездействие",
-    ].includes(c.appealType || "")
-  )
-    return 20;
-  if (
-    [
-      "Возражение на уведомление",
-      "Возражение на уведомления",
-      "Заявление",
-    ].includes(c.appealType || "") ||
-    c.type === "notice"
+    (c.appealType === "Возражение на уведомления" ||
+      c.type === "notice") &&
+    c.channel === "Веб-портал государственных закупок"
   )
     return 15;
   return 30;
 }
 
-export function reviewPauseDays(c: ObjectionCase) {
-  return c.appealType?.trim().startsWith("Жалоба") ? 0 : c.pauseDays;
-}
-
 export function reviewDeadline(c: ObjectionCase) {
   let d = addWorkdays(c.document.received, reviewDuration(c));
   if (c.extensionDays) d = addWorkdays(d, c.extensionDays);
-  if (reviewPauseDays(c)) d = addWorkdays(d, reviewPauseDays(c));
+  if (c.pauseDays) d = addWorkdays(d, c.pauseDays);
   return d;
-}
-
-/** Deadline for the action currently assigned at a process stage. */
-function authorityResponseDeadline(c: ObjectionCase, role?: Role) {
-  const authority = role === "kvga" ? "КВГА" : role === "dvga" ? "ДВГА" : "";
-  return c.requests
-    .filter(
-      (request) =>
-        Boolean(request.sent) &&
-        /ДВГА|КВГА/i.test(request.recipient) &&
-        (!authority || request.recipient.toUpperCase().includes(authority)),
-    )
-    .map((request) => addWorkdays(request.sent!, 2))
-    .sort()[0];
-}
-
-export function executionDeadline(c: ObjectionCase, role?: Role): string | null {
-  if (role === "dvga" || role === "kvga") {
-    const deadline = authorityResponseDeadline(c, role);
-    if (deadline) return deadline;
-  }
-  if (c.status === "received") return c.document.received;
-  if (
-    ["accepted", "requested", "request_approval", "request_signed"].includes(
-      c.status,
-    )
-  )
-    return addWorkdays(c.document.received, 2);
-  if (
-    [
-      "request_approved",
-      "response_approval",
-      "response_signed",
-      "response_ready",
-    ].includes(c.status)
-  ) {
-    return authorityResponseDeadline(c) ?? addWorkdays(c.document.received, 2);
-  }
-  if (
-    ["materials", "certificate_approval", "certificate_signed"].includes(
-      c.status,
-    )
-  )
-    return addWorkdays(c.document.received, 5);
-  if (
-    [
-      "certificate_approved",
-      "documents_review",
-      "commission_members",
-      "commission_voting",
-      "circulated",
-      "meeting_certificate_approval",
-      "meeting_certificate_signed",
-      "meeting_certificate_approved",
-    ].includes(c.status)
-  )
-    return c.attendanceMeetingDate ?? c.agendaMeetingDate ?? null;
-  if (c.status === "meeting") {
-    const meetingDate =
-      c.attendanceMeetingDate ?? c.agendaMeetingDate ?? c.hearing?.date;
-    return meetingDate ? addWorkdays(meetingDate, 1) : null;
-  }
-  if (c.status === "protocol") {
-    const meetingDate = c.attendanceMeetingDate ?? c.agendaMeetingDate;
-    return meetingDate ? addWorkdays(meetingDate, 1) : null;
-  }
-  if (
-    [
-      "decision_project",
-      "decision_project_approval",
-      "decision_project_signed",
-      "decision_project_delivery",
-      "decision_project_comments",
-      "decision_project_eotinish",
-      "decision_project_hearing",
-    ].includes(c.status)
-  )
-    return subtractWorkdays(reviewDeadline(c), 3);
-  if (
-    [
-      "decided",
-      "final_response_approval",
-      "final_response_signed",
-      "final_response_delivery",
-    ].includes(
-      c.status,
-    )
-  )
-    return reviewDeadline(c);
-  return null;
 }
