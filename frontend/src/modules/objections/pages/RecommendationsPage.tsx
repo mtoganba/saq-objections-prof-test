@@ -1,38 +1,51 @@
-import { Notice, PageHeading } from "../../../components/ui";
+import { useState } from "react";
+import { Button, Modal, Notice, PageHeading } from "../../../components/ui";
+import { ROLES } from "../../../data/constants";
 import type { CaseRecommendation, Role } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
-import {
-  recommendationStatusLabel,
-  recommendationStatusTone,
-  visibleForRole,
-} from "../recommendationPresentation";
+import { addWorkdays } from "../services/deadlines";
+
+const EXECUTION_RESULT_OPTIONS = [
+  "Заключение КК второго уровня с указанием номера и даты",
+  "Признано соответствующим/не признано соответствующим",
+  "Дата и номер аудиторского отчета (перепроверки)",
+  "Дис. ответственность и иные меры реагирования",
+  "Изменения в НПА/др",
+] as const;
 
 export default function RecommendationsPage({
   recommendations,
   role,
-  onOpenRecommendation,
+  onOpenCase,
+  onExecute,
 }: {
   recommendations: CaseRecommendation[];
   role: Role;
-  onOpenRecommendation: (recommendationId: string) => void;
+  onOpenCase: (caseId: string) => void;
+  onExecute: (
+    recommendationId: string,
+    answer: string,
+    executionResult: string,
+  ) => void;
 }) {
-  const isWork = role === "demo-superuser" || role === "work";
-  const visibleRecommendations = recommendations.filter((recommendation) =>
-    visibleForRole(recommendation, role),
-  );
+  const [selected, setSelected] = useState<CaseRecommendation | null>(null);
+  const visibleRecommendations =
+    (role === "demo-superuser" || role === "work")
+      ? recommendations
+      : recommendations.filter(
+          (recommendation) =>
+            recommendation.recipientRole === role ||
+            (!recommendation.recipientRole && recommendation.recipient === ROLES[role]),
+        );
 
   return (
     <>
       <PageHeading
         title="Рекомендации"
         subtitle={
-          isWork
+          (role === "demo-superuser" || role === "work")
             ? "Направленные рекомендации и контроль их исполнения"
-            : role === "deputy"
-              ? "Рекомендации, поступившие на согласование"
-              : role === "director"
-                ? "Рекомендации и решения по исполнению, поступившие на подписание"
-                : "Рекомендации, направленные в ваш кабинет для исполнения"
+            : "Рекомендации, направленные в ваш кабинет для исполнения"
         }
       />
       {visibleRecommendations.length === 0 ? (
@@ -40,49 +53,47 @@ export default function RecommendationsPage({
       ) : (
         <section className="card">
           <div className="table-wrap">
-            <table className="registry-table recommendations-registry-table">
+            <table>
               <thead>
                 <tr>
-                  <th>№ рекомендации</th>
-                  <th>Кому направлена</th>
-                  <th>Способ направления</th>
+                  <th>№</th>
+                  <th>Текст рекомендации</th>
+                  <th>Кому направлена рекомендация</th>
                   <th>Дата направления</th>
                   <th>Срок исполнения</th>
-                  <th>№ обращения</th>
+                  <th>Вид исполнения</th>
                   <th>Статус</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {visibleRecommendations.map((recommendation, index) => (
                   <tr key={recommendation.id}>
-                    <td>
-                      <div className="recommendation-open-cell">
-                        <strong>№ {index + 1}</strong>
-                        <button
-                          type="button"
-                          className="recommendation-open-link"
-                          onClick={() => onOpenRecommendation(recommendation.id)}
-                        >
-                          Открыть карточку <span>→</span>
-                        </button>
-                      </div>
-                    </td>
+                    <td>{index + 1}</td>
+                    <td>{recommendation.text}</td>
                     <td>{recommendation.recipient}</td>
                     <td>
-                      {recommendation.channel === "external"
-                        ? recommendation.deliveryPath || "Другая система"
-                        : "Кабинет SAQ"}
-                      {recommendation.registrationNumber && (
-                        <small className="subline">№ {recommendation.registrationNumber}</small>
+                      {formatDate(recommendation.sentAt || recommendation.createdAt)}
+                    </td>
+                    <td>
+                      {formatDate(
+                        recommendation.dueDate ||
+                          addWorkdays(recommendation.sentAt || recommendation.createdAt, 30),
                       )}
                     </td>
-                    <td>{formatDate(recommendation.sentAt || recommendation.createdAt)}</td>
-                    <td>{formatDate(recommendation.revisionDueDate || recommendation.dueDate)}</td>
-                    <td>{recommendation.caseReference}</td>
+                    <td>{recommendation.executionResult || "—"}</td>
                     <td>
-                      <span className={`badge ${recommendationStatusTone(recommendation.status)}`}>
-                        {recommendationStatusLabel(recommendation, role)}
+                      <span className={`badge ${recommendation.status === "executed" ? "green" : "blue"}`}>
+                        {recommendation.status === "executed" ? "Исполнен" : "Направлен"}
                       </span>
+                    </td>
+                    <td>
+                      {recommendation.status === "sent" &&
+                        (role === "demo-superuser" || role === recommendation.recipientRole) && (
+                        <Button primary onClick={() => setSelected(recommendation)}>
+                          Внести ответ
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -90,6 +101,43 @@ export default function RecommendationsPage({
             </table>
           </div>
         </section>
+      )}
+      {selected && (
+        <Modal title="Исполнение рекомендации" onClose={() => setSelected(null)}>
+          <form
+            className="form-grid"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const answer = String(
+                new FormData(event.currentTarget).get("answer") || "",
+              ).trim();
+              const executionResult = String(
+                new FormData(event.currentTarget).get("executionResult") || "",
+              ).trim();
+              if (!answer || !executionResult) return;
+              onExecute(selected.id, answer, executionResult);
+              setSelected(null);
+            }}
+          >
+            <label className="field">
+              <span>Результат исполнения рекомендации <span className="required">*</span></span>
+              <select name="executionResult" required defaultValue="">
+                <option value="" disabled>Выберите результат</option>
+                {EXECUTION_RESULT_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Ответ <span className="required">*</span></span>
+              <textarea name="answer" required rows={5} />
+            </label>
+            <div className="actions">
+              <Button type="button" onClick={() => setSelected(null)}>Отмена</Button>
+              <Button primary type="submit">Зафиксировать исполнение</Button>
+            </div>
+          </form>
+        </Modal>
       )}
     </>
   );
