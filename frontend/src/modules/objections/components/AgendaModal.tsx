@@ -3,11 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { Button, Modal } from "../../../components/ui";
 import type { ObjectionCase } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
-import {
-  applicantIdentifierType,
-  agendaOrProtocolIntro,
-  auditAuthorityTemplateName,
-} from "../services/appealTemplates";
+import { auditAuthorityFullName } from "../../../utils/auditAuthority";
 
 function value(text?: string) {
   return text?.trim() || "—";
@@ -28,9 +24,6 @@ function documentReference(c: ObjectionCase) {
 }
 
 export function agendaItemText(c: ObjectionCase) {
-  const sharedIntro = agendaOrProtocolIntro(c);
-  if (sharedIntro) return sharedIntro;
-
   const details = c.agendaDetails;
   const appealType =
     c.appealType ??
@@ -39,27 +32,26 @@ export function agendaItemText(c: ObjectionCase) {
       : c.type === "audit"
         ? "Возражение на аудиторский отчет"
         : "");
-  const common = `${value(c.org)} ${applicantIdentifierType(c)} ${value(c.bin)}`;
+  const common = `${value(c.org)} ИИН/БИН ${value(c.bin)}`;
   const executor = value(c.assignee);
-  const issuer = auditAuthorityTemplateName(c);
+  const issuer = auditAuthorityFullName(c.issuer);
 
   if (appealType === "Возражение на уведомления") {
-    return `Возражение от ${value(c.org)}, ${applicantIdentifierType(c)} ${value(c.bin)}, № ${value(c.appealNumber)} от ${formatDate(c.appealDate || c.filed)} года, к уведомлению об устранении нарушений от ${formatDate(c.document.date)} года № ${value(c.document.number)}, направленного по результатам камерального контроля ${issuer}.`;
+    return `Возражение от ${value(c.org)}, ИИН/БИН ${value(c.bin)}, № ${value(c.appealNumber)} от ${formatDate(c.appealDate || c.filed)} года, к уведомлению об устранении нарушений от ${formatDate(c.document.date)} года № ${value(c.document.number)}, направленного по результатам камерального контроля ${issuer}.`;
   }
 
   if (appealType === "Жалоба на уведомление") {
-    return `Жалоба от ${value(c.org)}, ${applicantIdentifierType(c)} ${value(c.bin)}, № ${value(c.appealNumber)} от ${formatDate(c.appealDate || c.filed)} года, на уведомление об устранении нарушений от ${formatDate(c.document.date)} года № ${value(c.document.number)}, проведенный ${issuer}.`;
+    return `Жалоба от ${value(c.org)}, ИИН/БИН ${value(c.bin)}, № ${value(c.appealNumber)} от ${formatDate(c.appealDate || c.filed)} года, к уведомлению об устранении нарушений от ${formatDate(c.document.date)} года № ${value(c.document.number)}, направленного по результатам камерального контроля ${issuer}.`;
   }
 
   if (appealType === "Возражение на аудиторский отчет") {
-    return `Возражение от ${value(c.org)}, ${applicantIdentifierType(c, "БИН")} ${value(c.bin)}, № ${value(c.appealNumber)} от ${formatDate(c.appealDate || c.filed)} года, на аудиторский отчет от ${formatDate(c.document.date)} года № ${value(c.document.number)}, проведенный ${issuer}.`;
+    return `Возражение ${appealReference(c)} ${common} на аудиторский отчет ${documentReference(c)}, проведенного ${issuer} (${executor})`;
   }
 
   if (appealType === "Жалоба на действие/бездействие") {
     if (!details?.procurementNumber)
       return `Жалоба ${appealReference(c)} ${common} касательно действия/бездействия ${issuer} на аудиторский отчет ${documentReference(c)}`;
-    const lot = details.lotNumber ? ` (лот ${numbered(details.lotNumber)})` : "";
-    return `Жалоба ${appealReference(c)} ${common} касательно действия/бездействия ${issuer} при рассмотрении обращения ${documentReference(c)} по государственной закупке ${numbered(details.procurementNumber)}${lot} на ${value(details.procurementSubject)} (${executor})`;
+    return `Жалоба ${appealReference(c)} ${common} касательно действия/бездействия ${issuer} при рассмотрении обращения ${documentReference(c)} по государственной закупке ${numbered(details.procurementNumber)} (лот ${numbered(details.lotNumber)}) на ${value(details.procurementSubject)} (${executor})`;
   }
 
   if (appealType === "Жалоба на решение КВГА/ДВГА") {
@@ -69,8 +61,6 @@ export function agendaItemText(c: ObjectionCase) {
       return `Жалоба ${appealReference(c)} ${common} на предписание ${issuer} ${documentReference(c)} по аудиторскому отчету ${related}`;
     if (kind === "prescription-preventive")
       return `Жалоба ${appealReference(c)} ${common} на предписание ${issuer} ${documentReference(c)} по профилактическому контролю ${related}`;
-    if (kind === "preventive-control-act")
-      return `Жалоба ${appealReference(c)} ${common} на акт о результате профилактического контроля ${issuer} ${documentReference(c)}`;
     if (kind === "administrative-act")
       return `Жалоба ${appealReference(c)} ${common} на административный акт ${issuer} ${documentReference(c)}`;
     return `Жалоба ${appealReference(c)} ${common} по результатам контроля качества ${issuer} ${documentReference(c)}`;
@@ -78,6 +68,9 @@ export function agendaItemText(c: ObjectionCase) {
 
   if (appealType === "Жалоба на акт о результате профилактического контроля")
     return `Жалоба ${appealReference(c)} ${common} на акт о результате профилактического контроля ${issuer} ${documentReference(c)}`;
+
+  if (appealType === "Заявление")
+    return `Заявление ${appealReference(c)} ${common} ${value(c.request)}.`;
 
   return `${value(appealType)} ${appealReference(c)} ${common}`;
 }
@@ -107,10 +100,7 @@ export function AgendaDocument({
   );
 }
 
-export function agendaDocumentHtml(
-  cases: ObjectionCase[],
-  meetingDate: string,
-) {
+export function agendaDocumentHtml(cases: ObjectionCase[], meetingDate: string) {
   const content = renderToStaticMarkup(
     <AgendaDocument cases={cases} meetingDate={meetingDate} />,
   );

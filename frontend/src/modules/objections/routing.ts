@@ -24,13 +24,6 @@ export function routeFromPath(path: string): Route {
       return { page: "sessions" };
     }
   }
-  if (parts[0] === "recommendations" && parts[1]) {
-    try {
-      return { page: "recommendation", caseId: decodeURIComponent(parts[1]) };
-    } catch {
-      return { page: "recommendations" };
-    }
-  }
   if (["notifications", "recommendations", "sources", "processes"].includes(parts[0]))
     return { page: parts[0] as Route["page"] };
   return { page: "registry" };
@@ -41,7 +34,5 @@ export function pathForRoute(route: Route): string {
     return `/cases/${encodeURIComponent(route.caseId || "")}/${route.tab || "review"}`;
   if (route.page === "sessions" && route.meetingId)
     return `/sessions/${encodeURIComponent(route.meetingId)}`;
-  if (route.page === "recommendation")
-    return `/recommendations/${encodeURIComponent(route.caseId || "")}`;
   return route.page === "registry" ? "/cases" : `/${route.page}`;
 }
