@@ -1,3 +1,4 @@
+import { seed } from "../../data/objections";
 import { useEffect, useState } from "react";
 import {
   createDemoRepository,
@@ -23,17 +24,116 @@ const COMPLETED_MEETING_STATUSES: CaseStatus[] = [
   "decision_project",
   "decision_project_approval",
   "decision_project_signed",
-  "decision_project_delivery",
-  "decision_project_comments",
   "decision_project_eotinish",
   "decision_project_hearing",
   "decided",
   "final_response_approval",
   "final_response_signed",
-  "final_response_delivery",
   "delivered",
   "completed",
 ];
+
+
+/**
+ * A ready-made case keeps the protocol-stage functions observable immediately
+ * after opening the public demo. It mirrors a completed preliminary workflow
+ * and leaves the other seed cases available for walking through that workflow.
+ */
+function protocolStageDemo(): ObjectionCase {
+  const c = structuredClone(seed().find((item) => item.id === "ВОЗ-2026-002")!);
+  c.id = "ВОЗ-2026-004";
+  c.appealNumber = "ВОЗ-2026-004";
+  c.status = "commission_voting";
+  c.registered = "2026-09-08";
+  c.filed = "2026-09-08";
+  c.assignee = "Исполнитель рабочего органа";
+  c.members = [
+    {
+      id: "protocol-chair",
+      name: "Вице-министр Кенбеил Д.М.",
+      present: true,
+      isChair: true,
+      recused: false,
+      reason: "",
+    },
+    {
+      id: "protocol-member",
+      name: "Директор ДАВГА Күреңбек тегі Ш.Б.",
+      present: true,
+      recused: false,
+      reason: "",
+    },
+  ];
+  c.issues = c.issues.map((point) => ({
+    ...point,
+    authorityFinding: `Доводы ДВГА/КВГА по пункту ${point.number}: ${point.finding}`,
+    position: `Мотивированный ответ ДВГА/КВГА по пункту ${point.number}: выводы подтверждены материалами проверки.`,
+  }));
+  c.requests = [
+    {
+      id: "demo-dvga-request",
+      recipient: "ДВГА по Атырауской области",
+      date: "2026-09-09",
+      text: "Запрос о представлении мотивированной позиции.",
+      deadline: "2026-09-11T18:00",
+      template: "dvga",
+      responded: "2026-09-10",
+      confirmed: "2026-09-10",
+      authorityResponses: Object.fromEntries(
+        c.issues
+          .filter((point) => point.disputed)
+          .map((point) => [
+            point.id,
+            {
+              finding: point.authorityFinding || "",
+              response: point.position || "",
+            },
+          ]),
+      ),
+    },
+  ];
+  c.certificate = {
+    davgaArguments: "Доводы рабочего органа подготовлены по результатам анализа материалов.",
+    davgaArgumentsByPoint: Object.fromEntries(
+      c.issues
+        .filter((point) => point.disputed)
+        .map((point) => [
+          point.id,
+          `Доводы ДАВГА по пункту ${point.number}: рабочий орган предлагает учесть представленные материалы и позицию ДВГА/КВГА.`,
+        ]),
+    ),
+    memberPositions: [],
+  };
+  c.documents = [
+    {
+      name: "Справка по результатам изучения и анализа возражения",
+      kind: "certificate",
+      text: "Исходная версия справки",
+      date: "2026-09-10",
+      author: c.assignee,
+      snapshot: {
+        issues: structuredClone(c.issues),
+        result: null,
+        members: structuredClone(c.members),
+        votes: null,
+        meeting: null,
+        hearing: null,
+        delivery: null,
+        certificate: structuredClone(c.certificate),
+      },
+    },
+  ];
+  c.history = [
+    ...c.history,
+    {
+      date: "2026-09-10",
+      actor: "Система",
+      title: "Демонстрационный этап формирования протокола",
+      text: "Справка сформирована, члены АК определены. Доступно редактирование доводов ДАВГА и формирование протокола.",
+    },
+  ];
+  return c;
+}
 
 function meetingDate(meeting: { dateTime: string }) {
   return meeting.dateTime.slice(0, 10);
@@ -50,7 +150,6 @@ function rescheduleSource(caseItem: ObjectionCase, state: DemoState) {
     .filter(
       (meeting) =>
         excluded.has(meeting.id) ||
-        meeting.postponedCaseIds?.includes(caseItem.id) ||
         (meeting.caseIds.includes(caseItem.id) &&
           (meeting.completed || meetingDate(meeting) < state.date) &&
           !isMeetingCompleted(caseItem)),
@@ -61,19 +160,13 @@ function rescheduleSource(caseItem: ObjectionCase, state: DemoState) {
 function nextMeetingForCase(state: DemoState, caseItem: ObjectionCase) {
   const meetings = state.meetings || [];
   const source = rescheduleSource(caseItem, state);
-  // После решения АК обращение ждёт ответы на дополнительный запрос и новую
-  // справку. До её подписания повторное заседание не назначается.
-  if (caseItem.repeatHearingStatus === "required") return undefined;
   const excluded = new Set(caseItem.excludedFromMeetingIds || []);
-  // Для переноса важны не только календарные даты, но и время заседания:
-  // заседание № 2 в 11:00 того же дня идёт после заседания № 1 в 10:00.
-  const sourceDateTime = source ? source.dateTime : "";
+  const sourceDate = source ? meetingDate(source) : "";
   const alreadyScheduled = meetings.some(
     (meeting) =>
       meeting.caseIds.includes(caseItem.id) &&
-      !meeting.postponedCaseIds?.includes(caseItem.id) &&
       !excluded.has(meeting.id) &&
-      (sourceDateTime ? meeting.dateTime > sourceDateTime : true),
+      (sourceDate ? meetingDate(meeting) > sourceDate : true),
   );
   if (alreadyScheduled) return undefined;
 
@@ -98,7 +191,7 @@ function nextMeetingForCase(state: DemoState, caseItem: ObjectionCase) {
       (meeting) =>
         !meeting.agendaSigned &&
         !excluded.has(meeting.id) &&
-        meeting.dateTime > sourceDateTime &&
+        meetingDate(meeting) > sourceDate &&
         meetingDate(meeting) > state.date,
     )
     .sort((left, right) => left.dateTime.localeCompare(right.dateTime))[0];
@@ -113,9 +206,7 @@ export function casesEligibleForMeeting(state: DemoState, dateTime: string) {
   const assignedCaseIds = new Set(
     (state.meetings || [])
       .filter((item) => item.id !== meeting.id)
-      .flatMap((item) =>
-        item.caseIds.filter((caseId) => !item.postponedCaseIds?.includes(caseId)),
-      ),
+      .flatMap((item) => item.caseIds),
   );
   return state.cases.filter(
     (caseItem) =>
@@ -138,18 +229,6 @@ function synchronizeUpcomingMeetingCases(state: DemoState) {
     if (poll && !poll.caseIds.includes(caseItem.id)) poll.caseIds.push(caseItem.id);
     caseItem.attendanceMeetingDate = meeting.dateTime.slice(0, 10);
     const source = rescheduleSource(caseItem, next);
-    if (caseItem.repeatHearingStatus === "ready") {
-      caseItem.repeatHearingStatus = "scheduled";
-      caseItem.repeatHearingMeetingId = meeting.id;
-      caseItem.history.push({
-        date: next.date,
-        actor: "Система",
-        title: "Назначено повторное заседание",
-        text:
-          `Обращение включено в заседание №${meeting.number} после отложенного ` +
-          `заседания №${caseItem.repeatHearingPreviousMeetingNumber || "—"}.`,
-      });
-    }
     caseItem.history.push({
       date: next.date,
       actor: "Система",
@@ -202,23 +281,24 @@ export function useObjectionsModel() {
       return {
         state: initialState(),
         error:
-          "Не удалось прочитать сохранённые данные. Показано исходное тестовое обращение. Изменения будут сохранены при следующем действии, если браузер разрешает хранение.",
+          "Не удалось прочитать сохранённые данные. Показаны исходные тестовые обращения. Изменения будут сохранены при следующем действии, если браузер разрешает хранение.",
       };
     }
   });
-  const [state, setState] = useState(() => loaded.state);
-  // Синхронизируем уже сохранённые обращения сразу после открытия страницы.
-  // Это важно, если заседание было создано раньше, а справка подписана позже:
-  // пользователю не требуется выполнять дополнительное действие вручную.
-  useEffect(() => {
-    const synchronized = synchronizeUpcomingMeetingCases(state);
-    if (synchronized === state) return;
-    createDemoRepository(localStorage).save(synchronized);
-    setState(synchronized);
-    // Синхронизация выполняется один раз для состояния, загруженного из
-    // хранилища; последующие изменения проходят через commit().
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [state, setState] = useState(() => {
+    loaded.state = { ...loaded.state, cases: loaded.state.cases.map(c => ["ВОЗ-2026-001", "ВОЗ-2026-002", "ЖАЛ-2026-003"].includes(c.id) ? { ...c, org:c.org.replace(" — Демо", ""), applicant:c.applicant.replace(" (демо)", ""), address:c.address.replace(", демонстрационный адрес", "") } : c) };
+    const protocolDemo = protocolStageDemo();
+    const index = loaded.state.cases.findIndex((c) => c.id === protocolDemo.id);
+    if (index < 0)
+      return { ...loaded.state, cases: [protocolDemo, ...loaded.state.cases] };
+    const current = loaded.state.cases[index];
+    // Upgrade only the untouched, initial demo case. User-progressed data is
+    // never replaced.
+    if (current.status !== "accepted" || current.certificate) return loaded.state;
+    const cases = [...loaded.state.cases];
+    cases[index] = protocolDemo;
+    return { ...loaded.state, cases };
+  });
   useEffect(() => {
     const handler = () => setRoute(routeFromPath(window.location.pathname));
     window.addEventListener("popstate", handler);

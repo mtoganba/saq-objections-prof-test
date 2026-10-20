@@ -82,32 +82,20 @@ export default function NotificationsPage({
                     </td>
                     <td>
                       {notification.kind === "attendance-poll" ? (
-                        <div className="notification-actions">
-                          {notification.meetingId && (
-                            <Button
-                              onClick={() => onOpenSessions(notification.meetingId)}
-                            >
-                              Открыть заседание
-                            </Button>
-                          )}
-                          <Button
-                            primary
-                            disabled={notification.read}
-                            onClick={() =>
-                              notification.attendancePollId &&
-                              notification.commissionMemberId &&
-                              onAnswerAttendancePoll(notification.id)
-                            }
-                          >
-                            {notification.read ? "Ответ направлен" : "Ответить"}
-                          </Button>
-                        </div>
-                      ) : notification.kind === "recommendation" ||
-                        notification.kind === "recommendation-response" ? (
+                        <Button
+                          primary
+                          disabled={notification.read}
+                          onClick={() =>
+                            notification.attendancePollId &&
+                            notification.commissionMemberId &&
+                            onAnswerAttendancePoll(notification.id)
+                          }
+                        >
+                          {notification.read ? "Ответ направлен" : "Ответить"}
+                        </Button>
+                      ) : notification.kind === "recommendation" ? (
                         <Button primary onClick={onOpenRecommendations}>
-                          {notification.kind === "recommendation-response"
-                            ? "Проверить ответ"
-                            : "Открыть рекомендации"}
+                          Открыть рекомендации
                         </Button>
                       ) : notification.kind === "agenda-sign" ? (
                         <Button
@@ -122,17 +110,12 @@ export default function NotificationsPage({
                         </Button>
                       ) : (
                         <Button
-                          primary={
-                            notification.kind === "request-response" ||
-                            notification.kind === "final-response"
-                          }
+                          primary={notification.kind === "request-response"}
                           onClick={() => onOpenCase(notification.caseId)}
                         >
-                          {notification.kind === "final-response"
-                            ? "Перейти к обращению"
-                            : notification.kind === "request-response"
-                              ? "Открыть обращение"
-                              : "Открыть"}
+                          {notification.kind === "request-response"
+                            ? "Открыть обращение"
+                            : "Открыть"}
                         </Button>
                       )}
                     </td>
