@@ -1,14 +1,9 @@
 import { useRef, useState } from "react";
 import { Button, Modal, Notice } from "../../../components/ui";
 import { makeCase } from "../../../data/objections";
-import type {
-  ApplicantIdentifierType,
-  CaseType,
-  DemoState,
-} from "../../../types";
+import type { CaseType, DemoState } from "../../../types";
 import { dateObject } from "../services/deadlines";
 import { required } from "../services/workflow";
-import { nextCaseNumber } from "../services/caseNumbering";
 import { Field } from "./ActionModal";
 
 const AUDIT_ORGAN_OPTIONS = [
@@ -53,15 +48,27 @@ function fileDataUrl(file: File) {
 }
 
 function formatFileSize(bytes: number) {
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
+  if (bytes < 1024 * 1024)
+    return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} МБ`;
 }
 
 const APPEAL_TYPES = [
+  { value: "statement", label: "Заявление", caseType: "control" },
   {
-    value: "audit-objection",
-    label: "Возражение на аудиторский отчет",
-    caseType: "audit",
+    value: "preventive-control-complaint",
+    label: "Жалоба на акт о результате профилактического контроля",
+    caseType: "control",
+  },
+  {
+    value: "action-inaction-complaint",
+    label: "Жалоба на действие/бездействие",
+    caseType: "control",
+  },
+  {
+    value: "kvga-dvga-decision-complaint",
+    label: "Жалоба на решение КВГА/ДВГА",
+    caseType: "control",
   },
   {
     value: "notice-objection",
@@ -74,16 +81,10 @@ const APPEAL_TYPES = [
     caseType: "notice",
   },
   {
-    value: "kvga-dvga-decision-complaint",
-    label: "Жалоба на решение КВГА/ДВГА",
-    caseType: "control",
+    value: "audit-objection",
+    label: "Возражение на аудиторский отчет",
+    caseType: "audit",
   },
-  {
-    value: "action-inaction-complaint",
-    label: "Жалоба на действие/бездействие",
-    caseType: "control",
-  },
-  { value: "statement", label: "Заявление", caseType: "control" },
 ] as const satisfies ReadonlyArray<{
   value: string;
   label: string;
@@ -100,12 +101,8 @@ export default function NewCaseModal({
   onClose: () => void;
 }) {
   const [appealType, setAppealType] = useState<string>(APPEAL_TYPES[0].value);
-  const [applicantIdentifierType, setApplicantIdentifierType] =
-    useState<ApplicantIdentifierType>("БИН");
   const [pointIds, setPointIds] = useState(["point1"]);
   const nextPointId = useRef(2);
-  const [actionAppealIds, setActionAppealIds] = useState(["actionAppeal1"]);
-  const nextActionAppealId = useRef(2);
   const [collapsedPoints, setCollapsedPoints] = useState<Set<string>>(
     () => new Set(),
   );
@@ -113,19 +110,12 @@ export default function NewCaseModal({
     Record<string, File[]>
   >({});
   const [requirementFiles, setRequirementFiles] = useState<File[]>([]);
-  const [isApplicantRepresentative, setIsApplicantRepresentative] =
-    useState(false);
-  const [powerOfAttorneyFile, setPowerOfAttorneyFile] = useState<File | null>(
-    null,
-  );
   const evidenceInputs = useRef<Record<string, HTMLInputElement | null>>({});
   const requirementsInput = useRef<HTMLInputElement | null>(null);
-  const powerOfAttorneyInput = useRef<HTMLInputElement | null>(null);
   const [hasProcurement, setHasProcurement] = useState(true);
   const [decisionKind, setDecisionKind] = useState<
     | "prescription-audit"
     | "prescription-preventive"
-    | "preventive-control-act"
     | "quality-control"
     | "administrative-act"
   >("prescription-audit");
@@ -138,47 +128,41 @@ export default function NewCaseModal({
   const isAudit = appealType === "audit-objection";
   const isActionComplaint = appealType === "action-inaction-complaint";
   const isDecisionComplaint = appealType === "kvga-dvga-decision-complaint";
-  const hasSeparateAuditObject =
-    isNoticeComplaint ||
-    isAudit ||
-    isActionComplaint ||
-    isDecisionComplaint ||
-    appealType === "statement";
-  const supportsRepresentativeConfirmation =
+  const isPreventiveComplaint =
+    appealType === "preventive-control-complaint";
+  const needsAgendaTemplateFields =
     isNotice ||
     isAudit ||
-    isDecisionComplaint ||
     isActionComplaint ||
-    appealType === "statement";
-  const needsAgendaTemplateFields =
-    isNotice || isAudit || isActionComplaint || isDecisionComplaint;
+    isDecisionComplaint ||
+    isPreventiveComplaint;
   const sourceDocumentLabel = isNotice
     ? "Уведомление об устранении нарушений"
-    : isAudit
-      ? "Аудиторский отчет"
-      : isActionComplaint
+      : isAudit
+        ? "Аудиторский отчет"
+        : isActionComplaint
         ? hasProcurement
           ? "Обращение, по которому обжалуется действие/бездействие"
           : "Аудиторский отчет"
         : isDecisionComplaint
           ? decisionKind === "quality-control"
             ? "Результат контроля качества"
-            : decisionKind === "preventive-control-act"
-              ? "Акт о результате профилактического контроля"
-              : decisionKind === "administrative-act"
-                ? "Административный акт"
-                : "Предписание"
-          : "Оспариваемый документ";
+            : decisionKind === "administrative-act"
+              ? "Административный акт"
+              : "Предписание"
+          : isPreventiveComplaint
+            ? "Акт о результате профилактического контроля"
+            : "Оспариваемый документ";
   const sourceDocumentNumberLabel = isActionComplaint
     ? "Номер первичного обращения в ДВГА/КВГА"
     : `Номер: ${sourceDocumentLabel}`;
   const sourceDocumentDateLabel = isActionComplaint
     ? "Дата первичного обращения в ДВГА/КВГА"
     : `Дата: ${sourceDocumentLabel}`;
-  const applicantNameLabel = hasSeparateAuditObject
+  const applicantNameLabel = isNoticeComplaint
     ? "Наименование объекта заявителя"
     : "Наименование объекта аудита/заявителя";
-  const applicantIdentifierLabel = `${applicantIdentifierType} заявителя`;
+  const applicantBinLabel = isNoticeComplaint ? "БИН/ИИН заявителя" : "БИН/ИИН";
   const updateRequirementFiles = (files: File[]) => {
     if (!files.length) return;
     setRequirementFiles((current) => {
@@ -233,53 +217,24 @@ export default function NewCaseModal({
                 );
               return files;
             });
-            if (isApplicantRepresentative && !powerOfAttorneyFile)
-              throw new Error("Вложите доверенность представителя");
             const get = (name: string, label: string) =>
               required(data, name, label);
-            const optional = (name: string) =>
-              String(data.get(name) ?? "").trim();
-            const bin = get("bin", applicantIdentifierLabel);
+            const bin = get("bin", applicantBinLabel);
             if (!/^\d{12}$/.test(bin))
-              throw new Error(
-                `${applicantIdentifierLabel} должен содержать 12 цифр`,
-              );
+              throw new Error(`${applicantBinLabel} должен содержать 12 цифр`);
             const appealDate = get(
               "appealDate",
               "Дата возражения, жалобы, заявления",
             );
             const received = get("received", "Дата получения документа");
             const filed = state.date;
-            const actionAppealAuthorities = isActionComplaint
-              ? actionAppealIds.map((appealId, index) => ({
-                  issuer: get(
-                    `actionIssuer_${appealId}`,
-                    `Орган аудита (КВГА/ДВГА) ${index + 1}`,
-                  ),
-                  documentNumber: get(
-                    `actionDocumentNumber_${appealId}`,
-                    `Номер первичного обращения в ДВГА/КВГА ${index + 1}`,
-                  ),
-                  documentDate: get(
-                    `actionDocumentDate_${appealId}`,
-                    `Дата первичного обращения в ДВГА/КВГА ${index + 1}`,
-                  ),
-                }))
-              : [];
-            const primaryActionAppeal = actionAppealAuthorities[0];
-            const documentDate = isActionComplaint
-              ? (primaryActionAppeal?.documentDate ?? appealDate)
-              : needsAgendaTemplateFields
-                ? get("documentDate", sourceDocumentDateLabel)
-                : appealDate;
-            [
-              appealDate,
-              received,
-              filed,
-              documentDate,
-              ...actionAppealAuthorities.map((item) => item.documentDate),
-            ].forEach(dateObject);
-            const amount = isNotice ? Number(get("amount", "Сумма, тенге")) : 0;
+            const documentDate = needsAgendaTemplateFields
+              ? get("documentDate", sourceDocumentDateLabel)
+              : appealDate;
+            [appealDate, received, filed, documentDate].forEach(dateObject);
+            const amount = isNotice
+              ? Number(get("amount", "Сумма, тенге"))
+              : 0;
             if (!Number.isFinite(amount) || amount < 0)
               throw new Error("Сумма должна быть неотрицательным числом");
             const customerBin = isNotice
@@ -287,18 +242,29 @@ export default function NewCaseModal({
               : "";
             if (isNotice && !/^\d{12}$/.test(customerBin))
               throw new Error("БИН заказчика должен содержать 12 цифр");
-            const auditObjectBin = hasSeparateAuditObject
+            const auditObjectBin = isNoticeComplaint
               ? get("auditObjectBin", "БИН/ИИН объекта аудита")
               : "";
-            if (hasSeparateAuditObject && !/^\d{12}$/.test(auditObjectBin))
-              throw new Error(
-                "БИН/ИИН объекта аудита должен содержать 12 цифр",
-              );
-            const id = nextCaseNumber(
-              state.cases,
-              selectedAppealType.label,
-              filed,
-            );
+            if (isNoticeComplaint && !/^\d{12}$/.test(auditObjectBin))
+              throw new Error("БИН/ИИН объекта аудита должен содержать 12 цифр");
+            const numberPrefix =
+              selectedAppealType.label === "Заявление"
+                ? "З"
+                : selectedAppealType.label.startsWith("Возражение")
+                  ? "В"
+                  : "Ж";
+            const year = filed.slice(0, 4);
+            const counter =
+              Math.max(
+                0,
+                ...state.cases.map((item) => {
+                  const match = item.id.match(
+                    new RegExp(`^${numberPrefix}-${year}-(\\d+)$`),
+                  );
+                  return match ? Number(match[1]) : 0;
+                }),
+              ) + 1;
+            const id = `${numberPrefix}-${year}-${String(counter).padStart(3, "0")}`;
             const c = makeCase({
               id,
               type,
@@ -310,25 +276,20 @@ export default function NewCaseModal({
               appealDate,
               org: get("org", applicantNameLabel),
               bin,
-              applicantIdentifierType,
               address: get("address", "Местонахождение"),
               applicant: String(data.get("applicant") || "").trim(),
               registered: state.date,
               filed,
               channel: get("channel", "Портал / цифровая система"),
-              issuer: isActionComplaint
-                ? (primaryActionAppeal?.issuer ?? "")
-                : get("issuer", "Орган"),
+              issuer: get("issuer", "Орган"),
               authority:
                 type === "control"
                   ? "Вышестоящий орган — определить компетенцию"
                   : "Апелляционная комиссия при Министерстве финансов РК",
               document: {
-                number: isActionComplaint
-                  ? (primaryActionAppeal?.documentNumber ?? "")
-                  : needsAgendaTemplateFields
-                    ? get("documentNumber", sourceDocumentNumberLabel)
-                    : "",
+                number: needsAgendaTemplateFields
+                  ? get("documentNumber", sourceDocumentNumberLabel)
+                  : "",
                 date: documentDate,
                 received,
                 name: needsAgendaTemplateFields
@@ -348,31 +309,19 @@ export default function NewCaseModal({
                         "Наименование заказчика",
                       ),
                       customerBin,
+                      ...(isNoticeComplaint && {
+                        auditObjectName: get(
+                          "auditObjectName",
+                          "Наименование объекта аудита",
+                        ),
+                        auditObjectBin,
+                      }),
                     }
                   : {}),
-                ...(hasSeparateAuditObject
-                  ? {
-                      auditObjectName: get(
-                        "auditObjectName",
-                        "Наименование объекта аудита",
-                      ),
-                      auditObjectBin,
-                      ...(supportsRepresentativeConfirmation
-                        ? {
-                            applicantIsAuditObjectRepresentative:
-                              isApplicantRepresentative,
-                          }
-                        : {}),
-                    }
-                  : {}),
-                ...(isActionComplaint ? { actionAppealAuthorities } : {}),
                 ...(isActionComplaint && hasProcurement
                   ? {
-                      procurementNumber: get(
-                        "procurementNumber",
-                        "Номер закупки",
-                      ),
-                      lotNumber: optional("lotNumber"),
+                      procurementNumber: get("procurementNumber", "Номер закупки"),
+                      lotNumber: get("lotNumber", "Номер лота"),
                       procurementSubject: get(
                         "procurementSubject",
                         "Предмет государственной закупки",
@@ -384,10 +333,18 @@ export default function NewCaseModal({
                       decisionKind,
                       ...((decisionKind === "prescription-audit" ||
                         decisionKind === "prescription-preventive") && {
-                        relatedDocumentNumber: optional(
+                        relatedDocumentNumber: get(
                           "relatedDocumentNumber",
+                          decisionKind === "prescription-audit"
+                            ? "Номер аудиторского отчета"
+                            : "Номер профилактического контроля",
                         ),
-                        relatedDocumentDate: optional("relatedDocumentDate"),
+                        relatedDocumentDate: get(
+                          "relatedDocumentDate",
+                          decisionKind === "prescription-audit"
+                            ? "Дата подписания аудиторского отчета"
+                            : "Дата подписания профилактического контроля",
+                        ),
                       }),
                     }
                   : {}),
@@ -434,15 +391,6 @@ export default function NewCaseModal({
                     author: "Заявитель",
                   })),
                 ),
-                ...(isApplicantRepresentative && powerOfAttorneyFile
-                  ? [
-                      {
-                        file: powerOfAttorneyFile,
-                        text: "Доверенность представителя",
-                        author: "Заявитель",
-                      },
-                    ]
-                  : []),
               ].map(async ({ file, text, author }) => ({
                 name: file.name,
                 filename: file.name,
@@ -459,14 +407,6 @@ export default function NewCaseModal({
                 actor: "Заявитель",
                 title: "Добавлены требования заявителя",
                 text: requirementFiles.map((file) => file.name).join(", "),
-              });
-            }
-            if (isApplicantRepresentative && powerOfAttorneyFile) {
-              c.history.push({
-                date: state.date,
-                actor: "Заявитель",
-                title: "Добавлена доверенность представителя",
-                text: powerOfAttorneyFile.name,
               });
             }
             const next = { ...state, cases: [...state.cases, c] };
@@ -512,136 +452,13 @@ export default function NewCaseModal({
           </select>
         </label>
         <div className="form-grid">
-          <Field
-            field={{
+          {[
+            {
               name: "org",
               label: applicantNameLabel,
-              type: "text",
-              required: true,
-            }}
-          />
-          <label className="field">
-            <span>
-              Тип идентификатора заявителя
-              <span className="required"> *</span>
-            </span>
-            <select
-              name="applicantIdentifierType"
-              value={applicantIdentifierType}
-              onChange={(event) =>
-                setApplicantIdentifierType(
-                  event.target.value as ApplicantIdentifierType,
-                )
-              }
-            >
-              <option value="БИН">БИН</option>
-              <option value="ИИН">ИИН</option>
-            </select>
-          </label>
-          <Field
-            field={{
-              name: "bin",
-              label: applicantIdentifierLabel,
-              type: "text",
-              required: true,
-            }}
-          />
-        </div>
-        {supportsRepresentativeConfirmation && (
-          <section className="representative-confirmation">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={isApplicantRepresentative}
-                onChange={(event) => {
-                  setIsApplicantRepresentative(event.target.checked);
-                  if (!event.target.checked) {
-                    setPowerOfAttorneyFile(null);
-                    if (powerOfAttorneyInput.current)
-                      powerOfAttorneyInput.current.value = "";
-                  }
-                }}
-              />
-              Заявитель является представителем объекта аудита
-            </label>
-            {isApplicantRepresentative && (
-              <div className="point-evidence-field representative-power-of-attorney">
-                <span>Вложить доверенность</span>
-                <label
-                  className="point-evidence-dropzone"
-                  htmlFor="powerOfAttorneyFile"
-                >
-                  <span className="point-evidence-icon" aria-hidden="true">
-                    📎
-                  </span>
-                  <span className="point-evidence-copy">
-                    Выберите доверенность на компьютере
-                  </span>
-                  <span className="point-evidence-button">Выбрать файл</span>
-                </label>
-                <input
-                  ref={powerOfAttorneyInput}
-                  id="powerOfAttorneyFile"
-                  className="point-evidence-input"
-                  type="file"
-                  name="powerOfAttorneyFile"
-                  required
-                  aria-label="Вложить доверенность"
-                  onClick={(event) => event.stopPropagation()}
-                  onChange={(event) =>
-                    setPowerOfAttorneyFile(event.target.files?.[0] ?? null)
-                  }
-                />
-                {powerOfAttorneyFile && (
-                  <span className="point-evidence-files">
-                    <span className="point-evidence-file">
-                      <span className="point-evidence-file-info">
-                        <strong>{powerOfAttorneyFile.name}</strong>
-                        <small>
-                          {formatFileSize(powerOfAttorneyFile.size)}
-                        </small>
-                      </span>
-                      <Button
-                        className="point-evidence-remove"
-                        type="button"
-                        aria-label="Удалить доверенность"
-                        onClick={() => {
-                          setPowerOfAttorneyFile(null);
-                          if (powerOfAttorneyInput.current)
-                            powerOfAttorneyInput.current.value = "";
-                        }}
-                      >
-                        ×
-                      </Button>
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-        <div className="form-grid">
-          {hasSeparateAuditObject && (
-            <>
-              <Field
-                field={{
-                  name: "auditObjectName",
-                  label: "Наименование объекта аудита",
-                  type: "text",
-                  required: true,
-                }}
-              />
-              <Field
-                field={{
-                  name: "auditObjectBin",
-                  label: "БИН/ИИН",
-                  type: "text",
-                  required: true,
-                }}
-              />
-            </>
-          )}
-          {[
+              type: "text" as const,
+            },
+            { name: "bin", label: applicantBinLabel, type: "text" as const },
             {
               name: "appealNumber",
               label: "Номер возражения, жалобы, заявления",
@@ -653,49 +470,53 @@ export default function NewCaseModal({
               type: "date" as const,
               value: state.date,
             },
-            {
-              name: "address",
-              label: "Местонахождение",
-              type: "text" as const,
-            },
-            {
-              name: "applicant",
-              label: "Представитель",
-              type: "text" as const,
-            },
+            { name: "address", label: "Местонахождение", type: "text" as const },
+            { name: "applicant", label: "Представитель", type: "text" as const },
+            ...(isNoticeComplaint
+              ? [
+                  {
+                    name: "auditObjectName",
+                    label: "Наименование объекта аудита",
+                    type: "text" as const,
+                  },
+                  {
+                    name: "auditObjectBin",
+                    label: "БИН/ИИН",
+                    type: "text" as const,
+                  },
+                ]
+              : []),
           ].map((field) => (
             <Field
               field={{ ...field, required: field.name !== "applicant" }}
               key={field.name}
             />
           ))}
-          {!isActionComplaint && (
+          <Field
+            field={{
+              name: "issuer",
+              label: "Орган аудита (КВГА/ДВГА)",
+              type: "select",
+              value: "ДВГА по Атырауской области",
+              options: AUDIT_ORGAN_OPTIONS.map((option) => [option, option]),
+              required: true,
+            }}
+          />
+          {[
+            { name: "received", label: "Дата получения документа" },
+          ].map((field) => (
             <Field
+              key={field.name}
               field={{
-                name: "issuer",
-                label: "Орган аудита (КВГА/ДВГА)",
-                type: "select",
-                value: "ДВГА по Атырауской области",
-                options: AUDIT_ORGAN_OPTIONS.map((option) => [option, option]),
+                ...field,
+                type: "date",
+                value: state.date,
                 required: true,
               }}
             />
-          )}
-          {[{ name: "received", label: "Дата получения документа" }].map(
-            (field) => (
-              <Field
-                key={field.name}
-                field={{
-                  ...field,
-                  type: "date",
-                  value: state.date,
-                  required: true,
-                }}
-              />
-            ),
-          )}
+          ))}
         </div>
-        {needsAgendaTemplateFields && !isActionComplaint && (
+        {needsAgendaTemplateFields && (
           <>
             <div className="form-grid">
               <Field
@@ -734,14 +555,8 @@ export default function NewCaseModal({
                       options: [
                         ["конкурс", "конкурс"],
                         ["аукцион", "аукцион"],
-                        [
-                          "запрос ценовых предложений",
-                          "запрос ценовых предложений",
-                        ],
-                        [
-                          "рейтингово-балльная система",
-                          "рейтингово-балльная система",
-                        ],
+                        ["запрос ценовых предложений", "запрос ценовых предложений"],
+                        ["рейтингово-балльная система", "рейтингово-балльная система"],
                         ["из одного источника", "из одного источника"],
                         ["товарная биржа", "товарная биржа"],
                       ],
@@ -771,74 +586,6 @@ export default function NewCaseModal({
         )}
         {isActionComplaint && (
           <section>
-            {actionAppealIds.map((appealId, index) => (
-              <section className="disputed-point-form-card" key={appealId}>
-                <div className="disputed-point-form-head">
-                  <h3>Обжалуемое действие/бездействие {index + 1}</h3>
-                  {actionAppealIds.length > 1 && (
-                    <div className="point-card-actions">
-                      <Button
-                        className="point-card-icon-button point-delete-button"
-                        type="button"
-                        aria-label={`Удалить блок ${index + 1}`}
-                        onClick={() =>
-                          setActionAppealIds((current) =>
-                            current.filter((item) => item !== appealId),
-                          )
-                        }
-                      >
-                        <span aria-hidden="true">×</span>
-                      </Button>
-                    </div>
-                  )}
-                </div>
-                <div className="form-grid">
-                  <Field
-                    field={{
-                      name: `actionIssuer_${appealId}`,
-                      label: "Орган аудита (КВГА/ДВГА)",
-                      type: "select",
-                      value: "ДВГА по Атырауской области",
-                      options: AUDIT_ORGAN_OPTIONS.map((option) => [
-                        option,
-                        option,
-                      ]),
-                      required: true,
-                    }}
-                  />
-                  <Field
-                    field={{
-                      name: `actionDocumentNumber_${appealId}`,
-                      label: "Номер первичного обращения в ДВГА/КВГА",
-                      type: "text",
-                      required: true,
-                    }}
-                  />
-                  <Field
-                    field={{
-                      name: `actionDocumentDate_${appealId}`,
-                      label: "Дата первичного обращения в ДВГА/КВГА",
-                      type: "date",
-                      value: state.date,
-                      required: true,
-                    }}
-                  />
-                </div>
-              </section>
-            ))}
-            <Button
-              className="add-disputed-point-button"
-              type="button"
-              onClick={() =>
-                setActionAppealIds((current) => [
-                  ...current,
-                  `actionAppeal${nextActionAppealId.current++}`,
-                ])
-              }
-            >
-              <span aria-hidden="true">＋</span>
-              Добавить орган аудита и обращение
-            </Button>
             <label className="checkbox-row">
               <input
                 type="checkbox"
@@ -862,7 +609,7 @@ export default function NewCaseModal({
                     name: "lotNumber",
                     label: "Номер лота",
                     type: "text",
-                    required: false,
+                    required: true,
                   }}
                 />
                 <Field
@@ -888,7 +635,6 @@ export default function NewCaseModal({
                     event.target.value as
                       | "prescription-audit"
                       | "prescription-preventive"
-                      | "preventive-control-act"
                       | "quality-control"
                       | "administrative-act",
                   )
@@ -899,9 +645,6 @@ export default function NewCaseModal({
                 </option>
                 <option value="prescription-preventive">
                   Предписание по профилактическому контролю
-                </option>
-                <option value="preventive-control-act">
-                  Акт о результате профилактического контроля
                 </option>
                 <option value="quality-control">Контроль качества</option>
                 <option value="administrative-act">Административный акт</option>
@@ -918,7 +661,7 @@ export default function NewCaseModal({
                         ? "Номер аудиторского отчета"
                         : "Номер профилактического контроля",
                     type: "text",
-                    required: false,
+                    required: true,
                   }}
                 />
                 <Field
@@ -929,7 +672,8 @@ export default function NewCaseModal({
                         ? "Дата подписания аудиторского отчета"
                         : "Дата подписания профилактического контроля",
                     type: "date",
-                    required: false,
+                    value: state.date,
+                    required: true,
                   }}
                 />
               </div>
@@ -940,7 +684,7 @@ export default function NewCaseModal({
           field={{
             name: "channel",
             label:
-              "Портал/цифровая система, по которой поступило обращение",
+              "Портал / цифровая система, по которой поступило уведомление",
             type: "select",
             value: "Веб-портал государственных закупок",
             options: CHANNEL_OPTIONS.map((option) => [option, option]),
@@ -954,10 +698,7 @@ export default function NewCaseModal({
         <Field
           field={{
             name: "request",
-            label:
-              appealType === "statement"
-                ? "О чем заявление"
-                : "Краткое описание",
+            label: appealType === "statement" ? "О чем заявление" : "Краткое описание",
             type: "textarea",
             required: true,
           }}
@@ -973,9 +714,7 @@ export default function NewCaseModal({
               updateRequirementFiles(Array.from(event.dataTransfer.files));
             }}
           >
-            <span className="point-evidence-icon" aria-hidden="true">
-              📎
-            </span>
+            <span className="point-evidence-icon" aria-hidden="true">📎</span>
             <span className="point-evidence-copy">
               Перетащите файлы сюда или выберите на компьютере
             </span>
@@ -990,6 +729,7 @@ export default function NewCaseModal({
             multiple
             aria-label="Вложить файлы"
             onClick={(event) => event.stopPropagation()}
+            
             onChange={(event) =>
               updateRequirementFiles(Array.from(event.target.files ?? []))
             }
@@ -1011,9 +751,7 @@ export default function NewCaseModal({
                     aria-label={`Удалить файл ${file.name}`}
                     onClick={() =>
                       setRequirementFiles((current) => {
-                        const next = current.filter(
-                          (_, index) => index !== fileIndex,
-                        );
+                        const next = current.filter((_, index) => index !== fileIndex);
                         const input = requirementsInput.current;
                         if (input) {
                           const dataTransfer = new DataTransfer();
@@ -1141,6 +879,7 @@ export default function NewCaseModal({
                     multiple
                     required
                     onClick={(event) => event.stopPropagation()}
+                    
                     onChange={(event) =>
                       updatePointEvidenceFiles(
                         pointId,
@@ -1150,34 +889,32 @@ export default function NewCaseModal({
                   />
                   {pointEvidenceFilesByPoint[pointId]?.length ? (
                     <span className="point-evidence-files">
-                      {pointEvidenceFilesByPoint[pointId].map(
-                        (file, fileIndex) => (
-                          <span
-                            className="point-evidence-file"
-                            key={`${file.name}-${file.lastModified}-${fileIndex}`}
-                          >
-                            <span className="point-evidence-file-info">
-                              <strong>{file.name}</strong>
-                              <small>{formatFileSize(file.size)}</small>
-                            </span>
-                            <Button
-                              className="point-evidence-remove"
-                              type="button"
-                              aria-label={`Удалить файл ${file.name}`}
-                              onClick={() =>
-                                updatePointEvidenceFiles(
-                                  pointId,
-                                  pointEvidenceFilesByPoint[pointId].filter(
-                                    (_, index) => index !== fileIndex,
-                                  ),
-                                )
-                              }
-                            >
-                              ×
-                            </Button>
+                      {pointEvidenceFilesByPoint[pointId].map((file, fileIndex) => (
+                        <span
+                          className="point-evidence-file"
+                          key={`${file.name}-${file.lastModified}-${fileIndex}`}
+                        >
+                          <span className="point-evidence-file-info">
+                            <strong>{file.name}</strong>
+                            <small>{formatFileSize(file.size)}</small>
                           </span>
-                        ),
-                      )}
+                          <Button
+                            className="point-evidence-remove"
+                            type="button"
+                            aria-label={`Удалить файл ${file.name}`}
+                            onClick={() =>
+                              updatePointEvidenceFiles(
+                                pointId,
+                                pointEvidenceFilesByPoint[pointId].filter(
+                                  (_, index) => index !== fileIndex,
+                                ),
+                              )
+                            }
+                          >
+                            ×
+                          </Button>
+                        </span>
+                      ))}
                     </span>
                   ) : null}
                 </div>
