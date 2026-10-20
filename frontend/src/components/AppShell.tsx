@@ -25,11 +25,6 @@ function isAuthorityRole(role: Role) {
   return role === "dvga" || role === "kvga";
 }
 
-/** Раздел «Бизнес-процессы» доступен только ролям рабочего органа и руководства ДАВГА. */
-export function canViewBusinessProcesses(role: Role) {
-  return role === "work" || role === "deputy" || role === "director";
-}
-
 export default function AppShell({
   children,
   route,
@@ -97,9 +92,7 @@ export default function AppShell({
         onHome={home}
         items={navigation
           .filter(
-            ({ page }) =>
-              !((isAuthorityRole(role) || role === "subject" || role === "subject2") && page === "sessions") &&
-              (page !== "processes" || canViewBusinessProcesses(role)),
+            ({ page }) => !(isAuthorityRole(role) && page === "sessions"),
           )
           .map(({ page, label }) => ({
           page,
@@ -107,8 +100,7 @@ export default function AppShell({
           badge: page === "notifications" ? unreadNotifications : undefined,
           active:
             route.page === page ||
-            (route.page === "detail" && page === "registry") ||
-            (route.page === "recommendation" && page === "recommendations"),
+            (route.page === "detail" && page === "registry"),
           onClick: () => onNavigate({ page }),
           }))}
       />
