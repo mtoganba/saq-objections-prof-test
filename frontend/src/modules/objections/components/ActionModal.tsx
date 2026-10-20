@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Action, ObjectionCase, Role } from "../../../types";
 import { Button, Modal, Notice } from "../../../components/ui";
-import { actionForm, requiresConclusion } from "../formDefinitions";
+import { actionForm } from "../formDefinitions";
 import type { FormField, FormValues } from "../formDefinitions";
 import { disputed, normalizeVoteChoice } from "../services/decisions";
 import { DocumentContent } from "./DocumentModal";
@@ -33,40 +33,6 @@ function appendixDocumentHtml(c: ObjectionCase, document: NonNullable<ObjectionC
   th { text-align: center; font-weight: 700; }
   th:first-child, td:first-child { width: 7%; text-align: center; }
   @media print { body { padding: 0; background: #fff; } .print-document { min-height: 0; padding: 20mm 15mm; } }
-</style></head><body>${content}</body></html>`;
-}
-
-function finalResponsePrintHtml(
-  c: ObjectionCase,
-  finalResponseMajorityByPoint: Record<string, boolean>,
-) {
-  const content = renderToStaticMarkup(
-    <DocumentContent
-      c={c}
-      kind="final-response"
-      finalResponseMajorityByPoint={finalResponseMajorityByPoint}
-    />,
-  );
-  return `<!doctype html>
-<html lang="kk"><head><meta charset="utf-8"><title>Окончательный ответ</title>
-<style>
-  @page { size: A4; margin: 18mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; color: #111; font-family: "Times New Roman", Times, serif; font-size: 12pt; line-height: 1.35; }
-  .print-document { min-height: 260mm; padding: 0; }
-  .final-response-recipient { width: 54%; margin: 0 0 46px auto; }
-  .final-response-recipient p { margin: 0 0 8px; }
-  .final-response-body p { margin: 0 0 10px; text-align: justify; text-indent: 12mm; }
-  .final-response-attachment-note { margin-top: 30px !important; text-indent: 0 !important; }
-  .final-response-signature { display: grid; grid-template-columns: 1fr auto; gap: 26px; align-items: end; margin: 60px 0 35px; }
-  .final-response-signature span { max-width: 320px; }
-  .final-response-executor { font-size: 10pt; line-height: 1.25; }
-  .final-response-appendix { break-before: page; page-break-before: always; }
-  .final-response-appendix h2 { font-size: 14pt; font-style: italic; }
-  .final-response-appendix-point { margin: 26px 0; }
-  .final-response-point-title { font-weight: 700; }
-  .final-response-point-reason, .final-response-point-decision { text-align: justify; text-indent: 12mm; }
-  .final-response-point-decision { margin-top: 12px; }
 </style></head><body>${content}</body></html>`;
 }
 
@@ -139,75 +105,30 @@ function certificateBasisForPoint(
   c: ObjectionCase,
   point: ReturnType<typeof disputed>[number],
 ) {
-  const latestCertificate = [...c.documents]
-    .reverse()
-    .find(
-      (document) =>
-        document.kind === "certificate" && Boolean(document.snapshot?.certificate),
-    );
-  const source = latestCertificate?.snapshot;
-  const sourcePoint = source?.issues.find((item) => item.id === point.id) || point;
-  const sourceRequests = source?.requests || c.requests;
-  const responses = sourceRequests
-    .map((request) => ({
-      authority: request.recipient.toUpperCase().includes("КВГА") ? "КВГА" : "ДВГА",
-      response: request.authorityResponses?.[point.id],
-      route: request.route,
-    }))
+  const responses = c.requests
+    .map((request) => request.authorityResponses?.[point.id])
     .filter(
-      (
-        item,
-      ): item is {
-        authority: "ДВГА" | "КВГА";
-        response: { finding: string; response: string };
-        route: ObjectionCase["requests"][number]["route"];
-      } => Boolean(item.response),
+      (response): response is { finding: string; response: string } =>
+        Boolean(response),
     );
   const authorityArguments =
-    responses
-      .map(({ authority, response, route }) =>
-        response.finding
-          ? `${route && route !== "initial" ? "Дополнительные доводы" : "Доводы"} ${authority}: ${response.finding}`
-          : "",
-      )
-      .filter(Boolean)
-      .join("\n\n") ||
-    sourcePoint.authorityFinding ||
+    responses.map((response) => response.finding).filter(Boolean).join("\n") ||
+    point.authorityFinding ||
     "—";
   const authorityReply =
-    responses
-      .map(({ authority, response, route }) =>
-        response.response
-          ? `${route && route !== "initial" ? "Дополнительный мотивированный ответ" : "Мотивированный ответ"} ${authority}: ${response.response}`
-          : "",
-      )
-      .filter(Boolean)
-      .join("\n\n") ||
-    sourcePoint.position ||
+    responses.map((response) => response.response).filter(Boolean).join("\n") ||
+    point.position ||
     "—";
   const davgaArguments =
-    source?.certificate?.davgaArgumentsByPoint?.[point.id] ||
-    source?.certificate?.davgaArguments ||
     c.certificate?.davgaArgumentsByPoint?.[point.id] ||
     c.certificate?.davgaArguments ||
     "—";
-  const additionalApplicantArguments = (sourcePoint.additionalArguments || [])
-    .map(
-      (argument, index) =>
-        `Дополнительные доводы объекта гос. аудита (заявителя)${
-          index ? ` №${index + 1}` : ""
-        }: ${argument}`,
-    )
-    .join("\n\n");
   return [
-    responses.length ? authorityArguments : `Доводы ДВГА/КВГА: ${authorityArguments}`,
-    `Доводы объекта государственного аудита (заявителя): ${sourcePoint.argument || "—"}`,
-    additionalApplicantArguments,
-    responses.length
-      ? authorityReply
-      : `Мотивированный ответ ДВГА/КВГА: ${authorityReply}`,
+    `Доводы ДВГА/КВГА: ${authorityArguments}`,
+    `Доводы объекта государственного аудита (заявителя): ${point.argument || "—"}`,
+    `Мотивированный ответ ДВГА/КВГА: ${authorityReply}`,
     `Доводы рабочего органа (ДАВГА МФ РК): ${davgaArguments}`,
-  ].filter(Boolean).join("\n\n");
+  ].join("\n\n");
 }
 
 function protocolReasonForMember(
@@ -225,12 +146,10 @@ function ProtocolVotesFields({
   c,
   members,
   values,
-  onReasonChange,
 }: {
   c: ObjectionCase;
   members: Array<{ id: string; name: string }>;
   values: FormValues;
-  onReasonChange: (name: string, value: string) => void;
 }) {
   if (!members.length)
     return (
@@ -260,7 +179,12 @@ function ProtocolVotesFields({
                 const reasonName = `protocolReason_${point.id}_${member.id}`;
                 const vote = normalizeVoteChoice(values[voteName]);
                 const certificateBasis = certificateBasisForPoint(c, point);
-                const reason = values[reasonName] ?? certificateBasis;
+                const enteredReason = values[reasonName] || "";
+                const reason = enteredReason.includes(certificateBasis)
+                  ? enteredReason
+                  : enteredReason
+                    ? `${certificateBasis}\n\nДополнительное обоснование члена АК:\n${enteredReason}`
+                    : certificateBasis;
                 return (
                   <tr key={`${point.id}-${member.id}`}>
                     <td>{index === 0 ? point.number : ""}</td>
@@ -279,7 +203,6 @@ function ProtocolVotesFields({
                         rows={8}
                         required
                         aria-label={`Обоснование ${member.name} по пункту ${point.number}`}
-                        onChange={(event) => onReasonChange(reasonName, event.currentTarget.value)}
                       />
                     </td>
                   </tr>
@@ -362,7 +285,6 @@ export default function ActionModal({
   c,
   date,
   role,
-  requestId,
   commissionMemberId,
   onSubmit,
   onSaveDraft,
@@ -372,8 +294,6 @@ export default function ActionModal({
   c: ObjectionCase;
   date: string;
   role: Role;
-  /** Предварительно выбранный запрос, для которого фиксируется ответ. */
-  requestId?: string;
   /** The AK member currently using the Appeals Commission cabinet. */
   commissionMemberId?: string;
   onSubmit: (form: FormData) => void | Promise<void>;
@@ -381,7 +301,7 @@ export default function ActionModal({
   onClose: () => void;
 }) {
   const [values, setValues] = useState<FormValues>(() => {
-    if (action === "request" || action === "request-saq")
+    if (action === "request" || action === "request-other")
       return { ...(c.requestDrafts?.[action]?.values || {}) };
     if (action === "analysis") return { ...(c.analysisDraft?.values || {}) };
     if (action === "fill-meeting-certificate") {
@@ -433,17 +353,16 @@ export default function ActionModal({
   const formRef = useRef<HTMLFormElement>(null);
   const [requestAttachments, setRequestAttachments] = useState<File[]>([]);
   const [conclusionFiles, setConclusionFiles] = useState<File[]>([]);
-  const [recommendationChannel, setRecommendationChannel] = useState<
-    "saq" | "external"
-  >("saq");
+  const [recommendationRecipients, setRecommendationRecipients] = useState<string[]>([]);
+  const [selectedRecommendationRecipient, setSelectedRecommendationRecipient] = useState("");
   const [requestTab, setRequestTab] = useState<"form" | "print">("form");
   const definition = actionForm(action, c, date, values, role);
   const activeCommissionVoter = commissionMemberId
     ? c.members.find((member) => member.id === commissionMemberId)
     : undefined;
-  const isRequest = action === "request" || action === "request-saq";
+  const isRequest = action === "request" || action === "request-other";
   const isAnalysis = action === "analysis";
-  const isOtherRequest = action === "request-saq";
+  const isOtherRequest = action === "request-other";
   const requestDeadline =
     values.deadline ||
     definition.fields.find((field) => field.name === "deadline")?.value ||
@@ -461,11 +380,11 @@ export default function ActionModal({
   const customRequestText =
     isOtherRequest ? values.customRequestText ?? "" : undefined;
   const protocolMembers = c.members;
+  const recommendationRecipientField = definition.fields.find(
+    (field) => field.name === "recommendationRecipients",
+  );
   const recommendationTextField = definition.fields.find(
     (field) => field.name === "recommendationText",
-  );
-  const recommendationDueDateField = definition.fields.find(
-    (field) => field.name === "recommendationDueDate",
   );
   const authorityRequestForResponse = c.requests.find(
     (request) =>
@@ -534,27 +453,6 @@ export default function ActionModal({
       "text/html;charset=utf-8",
     );
   };
-  const printFinalResponse = () => {
-    const finalResponseMajorityByPoint = Object.fromEntries(
-      disputed(c).map((point) => [
-        point.id,
-        Object.hasOwn(values, `finalResponseMajority_${point.id}`)
-          ? values[`finalResponseMajority_${point.id}`] === "on"
-          : Boolean(point.finalDecisionByMajority),
-      ]),
-    );
-    const popup = window.open("", "_blank");
-    if (!popup) {
-      setError(
-        "Браузер заблокировал окно печати. Разрешите всплывающие окна и повторите попытку.",
-      );
-      return;
-    }
-    popup.document.write(finalResponsePrintHtml(c, finalResponseMajorityByPoint));
-    popup.document.close();
-    popup.focus();
-    popup.print();
-  };
   return (
     <Modal
       title={definition.title}
@@ -568,15 +466,8 @@ export default function ActionModal({
         action === "fill-meeting-certificate" ||
         action === "position" ||
         action === "subject-response" ||
-        action === "request-other" ||
         action === "deliver" ||
-        action === "create-decision-project" ||
-        action === "send-decision-project-eotinish" ||
-        action === "record-decision-project-delivery" ||
-        action === "record-final-response-delivery" ||
-        action === "submit-decision-project-comment" ||
-        action === "record-external-decision-project-comment" ||
-        action === "hearing-after-decision-project"
+        action === "create-decision-project"
       }
     >
       <form
@@ -712,50 +603,7 @@ export default function ActionModal({
               />
             </div>
           </>
-        ) : action === "request-other" ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            <div className="form-grid">
-              {definition.fields.map((field) => (
-                <Field key={field.name} field={field} />
-              ))}
-            </div>
-            <label className="field request-attachments-field">
-              <span>Вложить документ</span>
-              <input
-                type="file"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-                onChange={(event) => {
-                  const files = Array.from(event.currentTarget.files || []);
-                  if (files.length)
-                    setRequestAttachments((current) => [...current, ...files]);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
-              {requestAttachments.length > 0 && (
-                <div className="request-attachments-list">
-                  {requestAttachments.map((file, index) => (
-                    <div key={`${file.name}-${index}`}>
-                      <span>{file.name}</span>
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          setRequestAttachments((current) =>
-                            current.filter((_, itemIndex) => itemIndex !== index),
-                          )
-                        }
-                      >
-                        Удалить
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </label>
-          </>
-        ) : action === "deliver" && requiresConclusion(c) ? (
+        ) : action === "deliver" && c.type === "notice" ? (
           <>
             {definition.note && <Notice>{definition.note}</Notice>}
             <div className="form-grid">
@@ -791,128 +639,69 @@ export default function ActionModal({
         ) : action === "send-recommendations" ? (
           <>
             {definition.note && <Notice>{definition.note}</Notice>}
-            <div className="form-grid">
-              <label className="field">
-                <span>
-                  Способ направления <span className="required">*</span>
-                </span>
-                <select
-                  name="recommendationChannel"
-                  value={recommendationChannel}
-                  onChange={(event) =>
-                    setRecommendationChannel(
-                      event.currentTarget.value === "external" ? "external" : "saq",
-                    )
-                  }
-                >
-                  <option value="saq">В кабинет SAQ</option>
-                  <option value="external">Через другую систему</option>
-                </select>
-              </label>
-              {recommendationChannel === "saq" ? (
-                <label className="field">
-                  <span>
-                    Кому направить рекомендацию <span className="required">*</span>
-                  </span>
-                  <input
-                    name="recommendationSaqRecipient"
-                    list="recommendation-saq-recipients"
-                    placeholder="Начните вводить название кабинета"
-                    required
-                  />
-                  <datalist id="recommendation-saq-recipients">
-                    <option value="Кабинет ДВГА" />
-                    <option value="Кабинет КВГА" />
-                    <option value="Кабинет Объекта" />
-                    <option value="Кабинет вышестоящего органа" />
-                  </datalist>
-                  <small>Найдите получателя по названию кабинета SAQ.</small>
-                </label>
-              ) : (
-                <>
-                  <label className="field">
-                    <span>
-                      Кому направлена рекомендация <span className="required">*</span>
-                    </span>
-                    <input name="recommendationExternalRecipient" required />
-                  </label>
-                  <label className="field">
-                    <span>
-                      Способ отправки <span className="required">*</span>
-                    </span>
-                    <select name="recommendationDeliveryPath" required defaultValue="">
-                      <option value="" disabled>Выберите способ</option>
-                      <option value="E-Otinish">E-Otinish</option>
-                      <option value="СЭД">СЭД</option>
-                      <option value="Портал / цифровая система">Портал / цифровая система</option>
-                      <option value="Почтовая связь">Почтовая связь</option>
-                      <option value="Вручение нарочно">Вручение нарочно</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>
-                      Номер направления <span className="required">*</span>
-                    </span>
-                    <input name="recommendationRegistrationNumber" required />
-                  </label>
-                  <label className="field">
-                    <span>
-                      Дата направления рекомендации <span className="required">*</span>
-                    </span>
-                    <input name="recommendationSentAt" type="date" defaultValue={date} required />
-                  </label>
-                </>
-              )}
-              <label className="field">
-                <span>
-                  Срок исполнения рекомендации <span className="required">*</span>
-                </span>
-                <input
-                  name="recommendationDueDate"
-                  type="date"
-                  defaultValue={recommendationDueDateField?.value || ""}
-                  required
-                />
-              </label>
-            </div>
-            {recommendationTextField && <Field field={recommendationTextField} />}
             <label className="field">
-              <span>Вложить файл</span>
-              <input
-                type="file"
-                name="recommendationFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-              />
-              <small>Необязательное вложение до 2 МБ.</small>
-            </label>
-          </>
-        ) : action === "record-final-response-delivery" ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            <div className="form-grid">
-              {definition.fields.map((field) => (
-                <Field key={field.name} field={field} />
-              ))}
-            </div>
-            <label className="field request-attachments-field">
               <span>
-                Файл-подтверждение отправки <span className="required">*</span>
+                Кому направить рекомендацию <span className="required">*</span>
               </span>
-              <input
-                type="file"
-                name="finalResponseDeliveryFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-                required
-              />
-              <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
+              <select
+                className="recommendation-recipient-select"
+                value={selectedRecommendationRecipient}
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  if (!value) return;
+                  setRecommendationRecipients((current) =>
+                    current.includes(value) ? current : [...current, value],
+                  );
+                  setSelectedRecommendationRecipient("");
+                }}
+              >
+                <option value="">Выберите кабинет</option>
+                {recommendationRecipientField?.options
+                  ?.filter(([value]) => !recommendationRecipients.includes(value))
+                  .map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <small>Можно выбрать несколько кабинетов.</small>
+              {recommendationRecipients.map((recipient) => {
+                const label = recommendationRecipientField?.options?.find(
+                  ([value]) => value === recipient,
+                )?.[1] || recipient;
+                return (
+                  <span className="badge blue notification-new-badge" key={recipient}>
+                    {label}{" "}
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() =>
+                        setRecommendationRecipients((current) =>
+                          current.filter((item) => item !== recipient),
+                        )
+                      }
+                    >
+                      ×
+                    </button>
+                  </span>
+                );
+              })}
+              {recommendationRecipients.map((recipient) => (
+                <input
+                  key={`input-${recipient}`}
+                  type="hidden"
+                  name="recommendationRecipients"
+                  value={recipient}
+                />
+              ))}
             </label>
+            {recommendationTextField && <Field field={recommendationTextField} />}
           </>
         ) : action === "deliver" || action === "create-decision-project" ? (
           <>
             <div className="request-modal-details">
               <div><span>Автор</span><b>{c.assignee === "Не назначен" ? DEMO_USER.fullName : c.assignee}</b></div>
-              <div><span>Печатная форма</span><b>{action === "create-decision-project" ? "Проект решения и приложение" : (c.appealType || "").trim().startsWith("Жалоба") || c.appealType === "Заявление" || c.appealType === "Возражение на аудиторский отчет" || c.appealType === "Возражение на аудиторский отчёт" ? "Мотивированный ответ и приложение" : "Окончательный ответ и приложение"}</b></div>
+              <div><span>Печатная форма</span><b>{action === "create-decision-project" ? "Проект решения и приложение" : "Окончательный ответ и приложение"}</b></div>
             </div>
             {definition.note && <Notice>{definition.note}</Notice>}
             <div className="request-modal-tabs" role="tablist">
@@ -921,58 +710,9 @@ export default function ActionModal({
             </div>
             <div hidden={requestTab !== "form"} className="form-grid">
               {definition.fields.map((field) => <Field key={field.name} field={field} />)}
-              {(action === "deliver" || action === "create-decision-project") && disputed(c).length > 0 && (
-                <div className="field wide">
-                  <span>
-                    {action === "create-decision-project"
-                      ? "Решение по оспариваемым пунктам"
-                      : "Итоговый результат по оспариваемым пунктам"}
-                  </span>
-                  {disputed(c).map((point) => {
-                    const checked = Object.hasOwn(
-                      values,
-                      `finalResponseMajority_${point.id}`,
-                    )
-                      ? values[`finalResponseMajority_${point.id}`] === "on"
-                      : Boolean(point.finalDecisionByMajority);
-                    return (
-                      <label className="checkbox-row" key={point.id}>
-                        <input
-                          type="checkbox"
-                          name={`finalResponseMajority_${point.id}`}
-                          defaultChecked={checked}
-                        />
-                        <span>По п. {point.number} — с большинством голосов</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
             </div>
             <div hidden={requestTab !== "print"} className="request-print-preview">
-              {action === "deliver" && (
-                <div className="actions request-print-actions">
-                  <Button type="button" primary onClick={printFinalResponse}>
-                    Печать / PDF
-                  </Button>
-                </div>
-              )}
-              <DocumentContent
-                c={c}
-                kind={
-                  action === "create-decision-project"
-                    ? "decision-project"
-                    : "final-response"
-                }
-                finalResponseMajorityByPoint={Object.fromEntries(
-                  disputed(c).map((point) => [
-                    point.id,
-                    Object.hasOwn(values, `finalResponseMajority_${point.id}`)
-                      ? values[`finalResponseMajority_${point.id}`] === "on"
-                      : Boolean(point.finalDecisionByMajority),
-                  ]),
-                )}
-              />
+              <DocumentContent c={c} kind="final-response" />
             </div>
           </>
         ) : action === "fill-request-response" ? (
@@ -1241,9 +981,6 @@ export default function ActionModal({
                 c={c}
                 members={protocolMembers}
                 values={values}
-                onReasonChange={(name, value) =>
-                  setValues((current) => ({ ...current, [name]: value }))
-                }
               />
             </div>
             <div hidden={requestTab !== "print"} className="request-print-preview">
@@ -1378,82 +1115,6 @@ export default function ActionModal({
                 required
               />
               <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
-            </label>
-          </>
-        ) : action === "record-external-response" ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            {requestId && (
-              <input type="hidden" name="externalRequestId" value={requestId} />
-            )}
-            {definition.fields
-              .filter((field) => !requestId || field.name !== "externalRequestId")
-              .map((field) => (
-              <Field key={field.name} field={field} />
-              ))}
-            <label className="field request-attachments-field">
-              <span>
-                Полученный файл <span className="required">*</span>
-              </span>
-              <input
-                type="file"
-                name="responseFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-                required
-              />
-              <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
-            </label>
-          </>
-        ) : action === "hearing-after-decision-project" ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            {definition.fields.length > 0 && (
-              <div className="form-grid">
-                {definition.fields.map((field) => (
-                  <Field key={field.name} field={field} />
-                ))}
-              </div>
-            )}
-            <label className="field request-attachments-field">
-              <span>
-                Протокол заслушивания <span className="required">*</span>
-              </span>
-              <input
-                type="file"
-                name="hearingProtocolFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-                required
-              />
-              <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
-            </label>
-          </>
-        ) : [
-          "record-decision-project-delivery",
-          "submit-decision-project-comment",
-          "record-external-decision-project-comment",
-        ].includes(action) ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            <div className="form-grid">
-              {definition.fields.map((field) => (
-                <Field key={field.name} field={field} />
-              ))}
-            </div>
-            <label className="field request-attachments-field">
-              <span>
-                {action === "record-decision-project-delivery"
-                  ? "Подтверждающий файл"
-                  : "Файл замечания"}
-              </span>
-              <input
-                type="file"
-                name="responseFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-              />
-              <small>Необязательное вложение до 2 МБ.</small>
             </label>
           </>
         ) : action === "position" ? (
@@ -1645,8 +1306,6 @@ export default function ActionModal({
               ? "Сохранение..."
               : action === "position"
                 ? "Сохранить полученный ответ"
-                : action === "record-external-response"
-                  ? "Сохранить ответ"
                 : action === "subject-response"
                   ? "Направить ответ"
                 : definition.submit}

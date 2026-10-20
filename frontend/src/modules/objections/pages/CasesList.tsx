@@ -3,12 +3,11 @@ import { Button, PageHeading } from "../../../components/ui";
 import { CLOSED, STATUS, TYPES } from "../../../data/constants";
 import type { CaseStatus, ObjectionCase, Role } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
-import { applicantIdentifierType } from "../services/appealTemplates";
 import { executionDeadline, reviewDeadline } from "../services/deadlines";
-import { isSubjectRole, subjectRoleForCase } from "../services/saqCabinets";
 
 const APPEAL_TYPE_OPTIONS = [
   "Заявление",
+  "Жалоба на акт о результате профилактического контроля",
   "Жалоба на действие/бездействие",
   "Жалоба на решение КВГА/ДВГА",
   "Возражение на уведомление",
@@ -54,8 +53,6 @@ const HEARING_WAITING_STATUSES = [
   "decision_project",
   "decision_project_approval",
   "decision_project_signed",
-  "decision_project_delivery",
-  "decision_project_comments",
   "decision_project_eotinish",
   "decision_project_hearing",
 ] as const;
@@ -64,7 +61,6 @@ const FINAL_RESPONSE_STATUSES = [
   "decided",
   "final_response_approval",
   "final_response_signed",
-  "final_response_delivery",
 ] as const;
 
 function countCasesByStatus(
@@ -90,22 +86,6 @@ function isRequestForAuthority(
     : recipient.includes("ДВГА");
 }
 
-function isRequestForSubject(request: ObjectionCase["requests"][number]) {
-  return (
-    request.template === "other" &&
-    request.saqRecipient === "subject" &&
-    Boolean(request.sent) &&
-    !request.responded
-  );
-}
-
-function hasFinalResponseForRecipient(c: ObjectionCase, role: Role) {
-  return (
-    Boolean(c.delivery?.recipientRoles?.includes(role)) &&
-    c.documents.some((document) => document.kind === "final-response")
-  );
-}
-
 function normalizedAppealType(c: ObjectionCase) {
   return (c.appealType ?? TYPES[c.type])
     .replace("Возражение на уведомления", "Возражение на уведомление")
@@ -128,28 +108,13 @@ export default function CasesList({
   onExport: (cases: ObjectionCase[]) => void;
 }) {
   const authorityRole = isAuthorityRole(role);
-  const subjectRole = isSubjectRole(role);
-  const recipientRole = authorityRole || subjectRole;
   const registryCases = authorityRole
     ? cases.filter((c) =>
-        c.requests.some((request) => isRequestForAuthority(request, role)) ||
-        hasFinalResponseForRecipient(c, role),
+        c.requests.some((request) => isRequestForAuthority(request, role)),
       )
-    : subjectRole
-      ? cases.filter(
-          (c) =>
-            hasFinalResponseForRecipient(c, role) ||
-            (subjectRoleForCase(c) === role &&
-              (c.requests.some(isRequestForSubject) ||
-                c.decisionProjectRouting?.channel === "saq")),
-        )
     : cases;
-  const recipientRequests = registryCases.flatMap((c) =>
-    c.requests.filter((request) =>
-      authorityRole
-        ? isRequestForAuthority(request, role)
-        : isRequestForSubject(request),
-    ),
+  const authorityRequests = registryCases.flatMap((c) =>
+    c.requests.filter((request) => isRequestForAuthority(request, role)),
   );
   const [query, setQuery] = useState("");
   const [appealTypeFilter, setAppealTypeFilter] = useState("all");
@@ -234,7 +199,7 @@ export default function CasesList({
         ? c.status === "paused"
           ? null
           : reviewDeadline(c)
-        : executionDeadline(c, role);
+        : executionDeadline(c);
     return [...filtered].sort((left, right) => {
       const leftDeadline = deadline(left);
       const rightDeadline = deadline(right);
@@ -249,7 +214,6 @@ export default function CasesList({
       appealTypeFilter,
       tab,
       deadlineSort,
-      role,
     ]);
 
   const toggleDeadlineSort = (column: Exclude<DeadlineSortColumn, null>) => {
@@ -267,16 +231,14 @@ export default function CasesList({
         : "↓";
   const stats = authorityRole
     ? [
-        [recipientRequests.length, "Всего запросов", "поступило в кабинет", "blue"],
+        [authorityRequests.length, "Всего запросов", "поступило в кабинет", "blue"],
         [
-          recipientRequests.filter((request) => request.responseSigned).length,
+          authorityRequests.filter((request) => request.responseSigned).length,
           "Направлено ответов",
           "ответов подписано и направлено",
           "green",
         ],
       ]
-    : subjectRole
-      ? [[recipientRequests.length, "Ожидают ответа", "требуется предоставить ответ", "blue"]]
     : [
         [cases.length, "Всего обращений", "зарегистрировано в реестре", "blue"],
         [
@@ -304,14 +266,14 @@ export default function CasesList({
       <PageHeading
         title="Реестр обращений"
         subtitle={
-          recipientRole
-            ? "Запросы и окончательные ответы, поступившие в кабинет"
+          authorityRole
+            ? "Запросы, поступившие в кабинет"
             : "Возражения объектов аудита и жалобы субъектов контроля"
         }
         action={
           <>
             <Button onClick={() => onExport(visible)}>Экспорт CSV</Button>
-            {!recipientRole && (
+            {!authorityRole && (
               <Button primary onClick={onCreate}>
                 + Новое возражение/обращение
               </Button>
@@ -473,20 +435,18 @@ export default function CasesList({
                     Срок исполнения <span>{sortIcon("execution")}</span>
                   </button>
                 </th>
-                {!authorityRole && (
-                  <th>
-                    <button
-                      type="button"
-                      className={`registry-sort-button ${
-                        deadlineSort.column === "review" ? "active" : ""
-                      }`}
-                      onClick={() => toggleDeadlineSort("review")}
-                      aria-label="Сортировать по сроку рассмотрения"
-                    >
-                      Срок рассмотрения <span>{sortIcon("review")}</span>
-                    </button>
-                  </th>
-                )}
+                <th>
+                  <button
+                    type="button"
+                    className={`registry-sort-button ${
+                      deadlineSort.column === "review" ? "active" : ""
+                    }`}
+                    onClick={() => toggleDeadlineSort("review")}
+                    aria-label="Сортировать по сроку рассмотрения"
+                  >
+                    Срок рассмотрения <span>{sortIcon("review")}</span>
+                  </button>
+                </th>
                 <th>Исполнитель</th>
                 <th />
               </tr>
@@ -502,21 +462,11 @@ export default function CasesList({
                     <button className="text-button" onClick={() => onOpen(c)}>
                       {c.id}
                     </button>
-                    <span className="subline">
-                      {formatDate(
-                        authorityRole
-                          ? c.requests.find((request) =>
-                              isRequestForAuthority(request, role),
-                            )?.sent || c.registered
-                          : c.registered,
-                      )}
-                    </span>
+                    <span className="subline">{formatDate(c.registered)}</span>
                   </td>
                   <td>
                     <strong>{c.org}</strong>
-                    <span className="subline">
-                      {applicantIdentifierType(c, "БИН")} {c.bin}
-                    </span>
+                    <span className="subline">БИН {c.bin}</span>
                   </td>
                   <td>
                     {normalizedAppealType(c)}
@@ -531,7 +481,7 @@ export default function CasesList({
                   </td>
                   <td>
                     {(() => {
-                      const deadline = executionDeadline(c, role);
+                      const deadline = executionDeadline(c);
                       return deadline ? (
                         <strong
                           className={
@@ -547,21 +497,19 @@ export default function CasesList({
                       );
                     })()}
                   </td>
-                  {!authorityRole && (
-                    <td>
-                      <strong
-                        className={
-                          reviewDeadline(c) < date && !CLOSED.includes(c.status)
-                            ? "text-danger"
-                            : ""
-                        }
-                      >
-                        {c.status === "paused"
-                          ? "Приостановлен"
-                          : formatDate(reviewDeadline(c))}
-                      </strong>
-                    </td>
-                  )}
+                  <td>
+                    <strong
+                      className={
+                        reviewDeadline(c) < date && !CLOSED.includes(c.status)
+                          ? "text-danger"
+                          : ""
+                      }
+                    >
+                      {c.status === "paused"
+                        ? "Приостановлен"
+                        : formatDate(reviewDeadline(c))}
+                    </strong>
+                  </td>
                   <td>
                     <strong>{c.assignee || "Не назначен"}</strong>
                   </td>
@@ -573,7 +521,7 @@ export default function CasesList({
               })}
               {!visible.length && (
                 <tr>
-                  <td colSpan={authorityRole ? 7 : 8}>
+                  <td colSpan={8}>
                     <div className="empty-state">
                       <h3>Обращения не найдены</h3>
                       <p>Измените строку поиска или фильтры.</p>
