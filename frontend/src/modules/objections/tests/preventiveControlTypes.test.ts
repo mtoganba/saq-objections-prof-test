@@ -33,7 +33,12 @@ import {
   requestTemplateIntro,
 } from "../services/appealTemplates";
 import { kazakhDecisionIntro } from "../components/DocumentModal";
-import NewCaseModal from "../components/NewCaseModal";
+import NewCaseModal, {
+  createSaqApplicantObjection,
+  SaqObjectionSubmissionModal,
+  SAQ_APPLICANT_PROFILE,
+  SAQ_PREVENTIVE_CONTROL_DOCUMENTS,
+} from "../components/NewCaseModal";
 import { caseNumberPrefix } from "../services/caseNumbering";
 
 function preventiveCase(appealType: string): ObjectionCase {
@@ -145,6 +150,73 @@ test("creation form offers the two preventive-control objections and removes pro
     },
   );
 });
+
+test("SAQ object cabinet can choose an act and automatically see its data and violations", () => {
+  const html = renderToStaticMarkup(
+    createElement(SaqObjectionSubmissionModal, {
+      state: initialState(),
+      onSave() {},
+      onClose() {},
+    }),
+  );
+
+  assert.match(html, /Подать возражение/);
+  assert.match(html, new RegExp(SAQ_APPLICANT_PROFILE.name));
+  assert.match(html, new RegExp(SAQ_APPLICANT_PROFILE.identifier));
+  assert.match(html, /№ 57 от 02\.09\.2026 — ДВГА по г\. Астана/);
+  assert.match(html, /ОПИ-01 — пункт нарушения № 1/);
+  assert.match(html, /ОПИ-01 — пункт нарушения № 2/);
+  assert.match(html, /ОПИ-01 — пункт нарушения № 3/);
+  assert.match(html, /Требования заявителя/);
+});
+
+test("SAQ filing creates an automatically numbered case with only selected act points", () => {
+  const state = initialState();
+  const sourceDocument = SAQ_PREVENTIVE_CONTROL_DOCUMENTS[0];
+  const result = createSaqApplicantObjection({
+    state,
+    sourceDocument,
+    received: "2026-09-03",
+    summary: "Оспариваем выводы акта",
+    requirements: "Исключить выводы по пунктам 1 и 3",
+    selectedPointIds: [
+      "preventive-act-57-point-1",
+      "preventive-act-57-point-3",
+    ],
+    pointArguments: {
+      "preventive-act-57-point-1": "Отчетность предоставлена своевременно.",
+      "preventive-act-57-point-3": "Расчет количества нарушения неверен.",
+    },
+  });
+  const c = result.state.cases.at(-1)!;
+
+  assert.equal(result.caseId, "В-2026-002");
+  assert.equal(c.appealType, PREVENTIVE_CONTROL_ACT_OBJECTION);
+  assert.equal(c.status, "received");
+  assert.equal(c.registrationMethod, "automatic");
+  assert.equal(c.submittedViaSaqApplicant, true);
+  assert.equal(c.sourceDocumentId, sourceDocument.id);
+  assert.equal(c.org, SAQ_APPLICANT_PROFILE.name);
+  assert.equal(c.bin, SAQ_APPLICANT_PROFILE.identifier);
+  assert.equal(c.address, SAQ_APPLICANT_PROFILE.address);
+  assert.equal(c.document.number, "57");
+  assert.equal(c.document.date, "2026-09-02");
+  assert.equal(c.applicantRequirements, "Исключить выводы по пунктам 1 и 3");
+  assert.deepEqual(c.issues.map((point) => point.number), ["1", "3"]);
+  assert.deepEqual(
+    c.issues.map((point) => point.argument),
+    [
+      "Отчетность предоставлена своевременно.",
+      "Расчет количества нарушения неверен.",
+    ],
+  );
+  assert.equal(c.secretaryDeadline, "2026-09-22");
+  assert.equal(
+    result.state.notifications.at(-1)?.recipient,
+    "Руководитель секретаря",
+  );
+});
+
 
 test("preventive-control objections use the statement review scenario", () => {
   for (const appealType of [
