@@ -1086,7 +1086,8 @@ export function applyAction(
         lifecycleStatus: "draft",
         author: String(form.get("executor") || DEMO_USER.fullName),
       });
-      doc(`Запрос в ${recipient}`, "request", note, requestId);
+      if (!isPreventiveControlObjectionType(c.appealType))
+        doc(`Запрос в ${recipient}`, "request", note, requestId);
       doc(
         `Приложение к запросу в ${recipient}`,
         "request-appendix",
@@ -1182,8 +1183,8 @@ export function applyAction(
         ? "Новые запросы направлены на согласование"
         : "Сформированные запросы направлены на согласование";
       note = isAdditionalBatch
-        ? "Новые сформированные запросы и приложения направлены заместителю директора ДАВГА."
-        : "Сформированные запросы и приложения направлены заместителю директора ДАВГА.";
+        ? "Новые сформированные запросы и приложения направлены в кабинет «Согласующий»."
+        : "Сформированные запросы и приложения направлены в кабинет «Согласующий».";
       next.notifications.push({
         id: `notification-${c.id}-${next.notifications.length + 1}`,
         caseId: c.id,
@@ -1848,7 +1849,7 @@ export function applyAction(
         c.votes = null;
         c.meeting = null;
         note =
-          "Справка сформирована и направлена заместителю директора ДАВГА на согласование.";
+          "Справка сформирована и направлена в кабинет «Согласующий» на согласование.";
         doc(
           "Справка по результатам изучения и анализа возражения",
           "certificate",
