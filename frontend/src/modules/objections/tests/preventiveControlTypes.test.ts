@@ -11,6 +11,7 @@ import {
   preventiveControlSourceDocumentLabels,
 } from "../appealTypes";
 import { actionForm } from "../formDefinitions";
+import ActionModal from "../components/ActionModal";
 import ConsiderationProcess from "../components/ConsiderationProcess";
 import { reviewDuration } from "../services/deadlines";
 import {
@@ -162,22 +163,28 @@ test("preventive-control meeting records commission votes without a meeting cert
 
   const disputedPoints = meetingCase.issues.filter((point) => point.disputed);
   assert.ok(disputedPoints.length > 0);
-  for (const member of meetingCase.members) {
-    const voteForm = new FormData();
-    voteForm.set("commissionMember", member.id);
-    disputedPoints.forEach((point) =>
-      voteForm.set(`commissionVote_${point.id}`, "accept"),
-    );
-    state = applyAction(
-      state,
-      c.id,
-      "commission-vote",
-      "work",
-      voteForm,
-    );
-  }
+  const voteForm = new FormData();
+  meetingCase.members.forEach((member) =>
+    disputedPoints.forEach((point) => {
+      voteForm.set(
+        `commissionVote_${point.id}_${member.id}`,
+        "accept",
+      );
+      voteForm.set(
+        `commissionReason_${point.id}_${member.id}`,
+        `Обоснование ${member.name}`,
+      );
+    }),
+  );
+  state = applyAction(state, c.id, "commission-vote", "work", voteForm);
 
   assert.equal(state.cases[0].status, "circulated");
+  assert.equal(
+    state.cases[0].votes?.[disputedPoints[0].id]?.voteReasons?.[
+      meetingCase.members[0].id
+    ],
+    `Обоснование ${meetingCase.members[0].name}`,
+  );
   const meetingForm = new FormData();
   meetingForm.set("meetingConducted", "on");
   state = applyAction(state, c.id, "members", "work", meetingForm);
@@ -188,6 +195,67 @@ test("preventive-control meeting records commission votes without a meeting cert
         document.name !== "Справка: результаты голосования членов АК",
     ),
   );
+});
+
+test("commission vote screen exposes the full member and question matrix", () => {
+  const c = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
+  c.status = "commission_voting";
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+    ...member,
+    present: true,
+    isChair: member.id === "kenbeil-dm",
+    recused: false,
+    reason: "",
+  }));
+  const html = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "commission-vote",
+      c,
+      date: "2026-09-08",
+      role: "work",
+      onSubmit() {},
+      onClose() {},
+    }),
+  );
+
+  assert.match(html, /Фамилия, инициалы/);
+  assert.match(html, /Описание оспариваемого вопроса/);
+  assert.match(html, /Урхумбаева Т\.Ж\./);
+  assert.match(html, /commissionVote_[^" ]+_alieva-at/);
+  assert.match(html, /commissionReason_[^" ]+_alieva-at/);
+  assert.doesNotMatch(html, /Выберите ФИО/);
+});
+
+test("commission members can record only their own open rows", () => {
+  let state = initialState();
+  const c = state.cases[0];
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  c.status = "commission_voting";
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+    ...member,
+    present: true,
+    isChair: member.id === "kenbeil-dm",
+    recused: false,
+    reason: "",
+  }));
+  c.votes = null;
+  const [member, other] = c.members;
+  const point = c.issues.find((item) => item.disputed)!;
+  const form = new FormData();
+  form.set("commissionMember", member.id);
+  form.set(`commissionVote_${point.id}_${member.id}`, "accept");
+  form.set(`commissionReason_${point.id}_${member.id}`, "Подтверждено материалами дела");
+  form.set(`commissionVote_${point.id}_${other.id}`, "reject");
+
+  state = applyAction(state, c.id, "commission-vote", "commission", form);
+
+  assert.equal(state.cases[0].votes?.[point.id]?.votes?.[member.id], "accept");
+  assert.equal(state.cases[0].votes?.[point.id]?.votes?.[other.id], undefined);
+  assert.equal(
+    state.cases[0].votes?.[point.id]?.voteReasons?.[member.id],
+    "Подтверждено материалами дела",
+  );
+  assert.equal(state.cases[0].status, "commission_voting");
 });
 
 test("preventive-control meeting shows manual voting without a certificate action", () => {

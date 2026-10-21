@@ -767,7 +767,7 @@ export function additionalActions(c: ObjectionCase): ActionOption[] {
     )
       options.push({
         action: "commission-vote",
-        label: "Внести голос члена АК вручную",
+        label: "Внести голоса членов АК вручную",
         role: "work",
       });
     if (
@@ -1330,43 +1330,81 @@ export function applyAction(
       break;
     }
     case "commission-vote": {
-      const voterId = text("commissionMember", "Голосующий член АК");
-      const voter = c.members.find((member) => member.id === voterId);
-      if (!voter) throw new Error("Выберите участника АК из состава заседания");
+      const voterId = String(form.get("commissionMember") || "").trim();
+      const votingMembers = c.members.filter((member) => member.present);
+      const voter = voterId
+        ? votingMembers.find((member) => member.id === voterId)
+        : undefined;
+      if (role === "commission" && !voter)
+        throw new Error("Голосовать можно только от своего имени и только при присутствии на заседании");
+      if (voterId && !voter)
+        throw new Error("Выбранный участник не отмечен присутствующим на заседании");
       const chairId = presidingChairId(c.members);
       if (!chairId)
         throw new Error(
           "Для проведения голосования должен присутствовать Вице-министр или Директор ДАВГА",
         );
-      c.votes ||= {};
+      const voteEntries: Array<{
+        point: ReturnType<typeof disputed>[number];
+        member: (typeof votingMembers)[number];
+        vote: NonNullable<ReturnType<typeof normalizeVoteChoice>>;
+        reason: string;
+      }> = [];
       for (const point of disputed(c)) {
-        const vote = normalizeVoteChoice(
-          text(`commissionVote_${point.id}`, `Голос по пункту ${point.number}`),
-        );
-        if (!vote) throw new Error("Выберите вариант голоса по каждому пункту");
+        for (const member of votingMembers) {
+          if (role === "commission" && member.id !== voter?.id) continue;
+          const matrixVoteName = `commissionVote_${point.id}_${member.id}`;
+          const legacyVoteName = `commissionVote_${point.id}`;
+          const hasMatrixVote = form.has(matrixVoteName);
+          const hasLegacyVote =
+            voterId === member.id && form.has(legacyVoteName);
+          if (!hasMatrixVote && !hasLegacyVote) continue;
+          const rawVote = String(
+            form.get(hasMatrixVote ? matrixVoteName : legacyVoteName) || "",
+          );
+          const vote = normalizeVoteChoice(rawVote);
+          if (
+            !vote ||
+            normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id])
+          )
+            continue;
+          const reasonName = `commissionReason_${point.id}_${member.id}`;
+          const legacyReasonName = `commissionReason_${point.id}`;
+          voteEntries.push({
+            point,
+            member,
+            vote,
+            reason: String(
+              form.get(form.has(reasonName) ? reasonName : legacyReasonName) || "",
+            ).trim(),
+          });
+        }
+      }
+      if (!voteEntries.length)
+        throw new Error("Выберите голос хотя бы по одному ещё не заполненному вопросу");
+      c.votes ||= {};
+      for (const { point, member, vote, reason } of voteEntries) {
         const result = c.votes[point.id] || {
           yes: 0,
           no: 0,
           approved: false,
           chair: chairId,
-          present: c.members.length,
-          eligible: c.members.length,
+          present: votingMembers.length,
+          eligible: votingMembers.length,
           votes: {},
           voteReasons: {},
         };
         result.votes ||= {};
         result.voteReasons ||= {};
-        result.votes[voter.id] = vote;
-        result.voteReasons[voter.id] = String(
-          form.get(`commissionReason_${point.id}`) || "",
-        ).trim();
-        const recordedVotes = c.members.map((member) =>
+        result.votes[member.id] = vote;
+        result.voteReasons[member.id] = reason;
+        const recordedVotes = votingMembers.map((member) =>
           normalizeVoteChoice(result.votes![member.id]),
         );
         result.yes = recordedVotes.filter((item) => item === "accept").length;
         result.no = recordedVotes.filter((item) => item === "reject").length;
-        result.present = c.members.length;
-        result.eligible = c.members.length;
+        result.present = votingMembers.length;
+        result.eligible = votingMembers.length;
         const allVoted = recordedVotes.every(Boolean);
         const outcome = allVoted
           ? pointOutcomeFromVotes(result.votes, chairId)
@@ -1379,18 +1417,30 @@ export function applyAction(
         }
       }
       const allVotesRecorded = disputed(c).every((point) =>
-        c.members.every((member) => {
+        votingMembers.every((member) => {
           const vote = c.votes?.[point.id]?.votes?.[member.id];
           return Boolean(normalizeVoteChoice(vote));
         }),
       );
+      const pendingVoteRows = disputed(c).reduce(
+        (count, point) =>
+          count +
+          votingMembers.filter(
+            (member) =>
+              !normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]),
+          ).length,
+        0,
+      );
+      const recordedVoters = [...new Set(voteEntries.map(({ member }) => member.id))];
       c.status = allVotesRecorded ? "circulated" : "commission_voting";
       title = allVotesRecorded
         ? "Голосование членов АК завершено"
-        : `Голос ${voter.name} зафиксирован`;
+        : recordedVoters.length === 1
+          ? `Голос ${votingMembers.find((member) => member.id === recordedVoters[0])?.name || "члена АК"} зафиксирован`
+          : "Голоса членов АК зафиксированы";
       note = allVotesRecorded
         ? "Все участники АК проголосовали по оспариваемым пунктам. Обращение готово к проведению заседания."
-        : "Ожидаются голоса остальных участников АК по каждому оспариваемому пункту.";
+        : `Ожидаются ещё ${pendingVoteRows} голосов по оспариваемым вопросам.`;
       doc("Голосование членов АК", "commission-vote", note);
       break;
     }

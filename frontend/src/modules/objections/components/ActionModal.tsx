@@ -222,6 +222,47 @@ function protocolReasonForMember(
   return `${basis}\n\nДополнительное обоснование члена АК:\n${memberReason}`;
 }
 
+function commissionMemberNameParts(name: string) {
+  const cleaned = name.trim().replace(/\s+/g, " ");
+  const match = cleaned.match(
+    /^(.*\S)\s+([^\s]+)\s+([А-ЯЁӘҒҚҢӨҰҮҺІA-Z]\.(?:[А-ЯЁӘҒҚҢӨҰҮҺІA-Z]\.)?)$/u,
+  );
+  if (!match)
+    return {
+      role: "",
+      surname: cleaned,
+      initials: "",
+    };
+  let [, role, surname, initials] = match;
+  if (surname.toLowerCase() === "тегі") {
+    const roleWords = role.split(" ");
+    surname = `${roleWords.pop()} тегі`;
+    role = roleWords.join(" ");
+  }
+  return { role, surname, initials };
+}
+
+function CommissionMemberCell({ name }: { name: string }) {
+  const parts = commissionMemberNameParts(name);
+  const avatar = (parts.initials.replace(/\./g, "") || parts.surname.slice(0, 2))
+    .slice(0, 2)
+    .toLocaleUpperCase("ru");
+  return (
+    <div className="commission-vote-member">
+      <span className="commission-vote-avatar" aria-hidden="true">
+        {avatar}
+      </span>
+      <span className="commission-vote-member-name">
+        <strong>
+          {parts.surname}
+          {parts.initials ? ` ${parts.initials}` : ""}
+        </strong>
+        <small>{parts.role || "Член Апелляционной комиссии"}</small>
+      </span>
+    </div>
+  );
+}
+
 function ProtocolVotesFields({
   c,
   members,
@@ -462,6 +503,30 @@ export default function ActionModal({
   const customRequestText =
     isOtherRequest ? values.customRequestText ?? "" : undefined;
   const protocolMembers = c.members;
+  const commissionVotingMembers = c.members.filter((member) => member.present);
+  const commissionVotingPoints = disputed(c);
+  const commissionVoteCount = commissionVotingPoints.reduce(
+    (count, point) =>
+      count +
+      commissionVotingMembers.filter((member) =>
+        normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]),
+      ).length,
+    0,
+  );
+  const commissionVoteTotal =
+    commissionVotingPoints.length * commissionVotingMembers.length;
+  const commissionVotePercent = commissionVoteTotal
+    ? Math.round((commissionVoteCount / commissionVoteTotal) * 100)
+    : 0;
+  const activeCommissionVoterHasPendingVote = Boolean(
+    activeCommissionVoter &&
+      commissionVotingPoints.some(
+        (point) =>
+          !normalizeVoteChoice(
+            c.votes?.[point.id]?.votes?.[activeCommissionVoter.id],
+          ),
+      ),
+  );
   const recommendationTextField = definition.fields.find(
     (field) => field.name === "recommendationText",
   );
@@ -560,8 +625,10 @@ export default function ActionModal({
     <Modal
       title={definition.title}
       onClose={onClose}
+      className={action === "commission-vote" ? "commission-voting-dialog" : ""}
       wide={
         action === "vote" ||
+        action === "commission-vote" ||
         isRequest ||
         action === "fill-request-response" ||
         action === "analysis" ||
@@ -1301,78 +1368,155 @@ export default function ActionModal({
         ) : action === "commission-vote" ? (
           <>
             {definition.note && <Notice>{definition.note}</Notice>}
-            {activeCommissionVoter ? (
-              <div className="field">
-                <span>Голосующий член АК</span>
-                <strong>{activeCommissionVoter.name}</strong>
-                <input
-                  type="hidden"
-                  name="commissionMember"
-                  value={activeCommissionVoter.id}
-                />
-              </div>
-            ) : (
-              <label className="field">
-                <span>Голосующий член АК <span className="required">*</span></span>
-                <select name="commissionMember" required defaultValue="">
-                  <option value="">Выберите ФИО</option>
-                  {c.members
-                    .filter((member) =>
-                      disputed(c).some(
-                        (point) => !c.votes?.[point.id]?.votes?.[member.id],
-                      ),
-                    )
-                    .map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
+            {activeCommissionVoter && (
+              <input
+                type="hidden"
+                name="commissionMember"
+                value={activeCommissionVoter.id}
+              />
             )}
-            <h3 className="form-section">Оспариваемые пункты</h3>
-            <div className="table-scroll">
-              <table className="data-table">
+            <div className="commission-vote-summary">
+              <div className="commission-vote-stat commission-vote-progress-stat">
+                <span>Голосов зафиксировано</span>
+                <strong>
+                  {commissionVoteCount}
+                  <small> из {commissionVoteTotal}</small>
+                </strong>
+                <div
+                  className="commission-vote-progress"
+                  role="progressbar"
+                  aria-label="Ход голосования"
+                  aria-valuemin={0}
+                  aria-valuemax={commissionVoteTotal}
+                  aria-valuenow={commissionVoteCount}
+                >
+                  <span style={{ width: `${commissionVotePercent}%` }} />
+                </div>
+              </div>
+              <div className="commission-vote-stat">
+                <span>Ожидают голоса</span>
+                <strong>{Math.max(commissionVoteTotal - commissionVoteCount, 0)}</strong>
+              </div>
+              <div className="commission-vote-stat">
+                <span>Кто вносит голос</span>
+                <strong>
+                  {role === "commission"
+                    ? activeCommissionVoter
+                      ? commissionMemberNameParts(activeCommissionVoter.name).surname
+                      : "Член АК"
+                    : "Секретарь"}
+                </strong>
+              </div>
+            </div>
+            <h3 className="form-section commission-vote-heading">
+              Голоса по оспариваемым вопросам
+            </h3>
+            {commissionVotingMembers.length && commissionVotingPoints.length ? (
+              <div className="commission-vote-table-scroll">
+                <table className="data-table commission-vote-table">
                 <thead>
                   <tr>
-                    <th>№</th>
-                    <th>Описание оспариваемого пункта</th>
+                    <th>Фамилия, инициалы</th>
+                    <th>Описание оспариваемого вопроса</th>
                     <th>Голос</th>
                     <th>Обоснование</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {disputed(c).map((point) => (
-                    <tr key={point.id}>
-                      <td>{point.number}</td>
-                      <td>{point.title}</td>
-                      <td>
-                        <select
-                          name={`commissionVote_${point.id}`}
-                          defaultValue={values[`commissionVote_${point.id}`] || ""}
-                          required
-                          aria-label={`Голос по пункту ${point.number}`}
+                  {commissionVotingPoints.map((point) =>
+                    commissionVotingMembers.map((member, index) => {
+                      const savedVote = normalizeVoteChoice(
+                        c.votes?.[point.id]?.votes?.[member.id],
+                      );
+                      const voteName = `commissionVote_${point.id}_${member.id}`;
+                      const reasonName = `commissionReason_${point.id}_${member.id}`;
+                      const savedReason =
+                        c.votes?.[point.id]?.voteReasons?.[member.id]?.trim() || "";
+                      const canEnterVote =
+                        !savedVote &&
+                        (role !== "commission" ||
+                          member.id === activeCommissionVoter?.id);
+                      return (
+                        <tr
+                          key={`${point.id}-${member.id}`}
+                          className={savedVote ? "commission-vote-recorded" : ""}
                         >
-                          <option value="">Выберите голос</option>
-                          {Object.entries(OUTCOMES).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <textarea
-                          name={`commissionReason_${point.id}`}
-                          rows={2}
-                          aria-label={`Обоснование по пункту ${point.number}`}
-                        />
-                      </td>
-                    </tr>
-                  ))}
+                          <td>
+                            <CommissionMemberCell name={member.name} />
+                          </td>
+                          {index === 0 && (
+                            <td
+                              rowSpan={commissionVotingMembers.length}
+                              className="commission-vote-issue-cell"
+                            >
+                              <span className="commission-vote-point-number">
+                                Пункт №{point.number}
+                              </span>
+                              <span>{point.title || "Описание вопроса не указано"}</span>
+                            </td>
+                          )}
+                          <td>
+                            {savedVote ? (
+                              <span
+                                className={`commission-vote-choice commission-vote-choice-${savedVote}`}
+                              >
+                                <span aria-hidden="true">✓</span>
+                                {OUTCOMES[savedVote]}
+                              </span>
+                            ) : canEnterVote ? (
+                              <select
+                                name={voteName}
+                                defaultValue={values[voteName] || ""}
+                                aria-label={`Голос ${member.name} по пункту ${point.number}`}
+                              >
+                                <option value="">Выберите голос</option>
+                                {Object.entries(OUTCOMES).map(([value, label]) => (
+                                  <option key={value} value={value}>
+                                    {label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="commission-vote-pending">
+                                Ожидается голос
+                              </span>
+                            )}
+                          </td>
+                          <td>
+                            {savedVote ? (
+                              <span
+                                className={
+                                  savedReason
+                                    ? "commission-vote-saved-reason"
+                                    : "commission-vote-no-reason"
+                                }
+                              >
+                                {savedReason || "Обоснование не указано"}
+                              </span>
+                            ) : canEnterVote ? (
+                              <textarea
+                                name={reasonName}
+                                defaultValue={values[reasonName] || ""}
+                                rows={2}
+                                placeholder="Краткое обоснование решения"
+                                aria-label={`Обоснование ${member.name} по пункту ${point.number}`}
+                              />
+                            ) : (
+                              <span className="commission-vote-no-reason">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    }),
+                  )}
                 </tbody>
-              </table>
-            </div>
+                </table>
+              </div>
+            ) : (
+              <Notice tone="amber">
+                Нет отмеченных участников или оспариваемых вопросов для голосования.
+              </Notice>
+            )}
           </>
         ) : action === "subject-response" ? (
           <>
@@ -1651,9 +1795,22 @@ export default function ActionModal({
               {isAnalysis ? "Сохранить" : "Сохранить проект"}
             </Button>
           )}
-          <Button type="submit" primary disabled={saving}>
+          <Button
+            type="submit"
+            primary
+            disabled={
+              saving ||
+              (action === "commission-vote" &&
+                role === "commission" &&
+                !activeCommissionVoterHasPendingVote)
+            }
+          >
             {saving
               ? "Сохранение..."
+              : action === "commission-vote" &&
+                  role === "commission" &&
+                  !activeCommissionVoterHasPendingVote
+                ? "Ваш голос уже учтён"
               : action === "position"
                 ? "Сохранить полученный ответ"
                 : action === "record-external-response"

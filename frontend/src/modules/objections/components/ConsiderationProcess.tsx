@@ -912,7 +912,9 @@ export default function ConsiderationProcess({
                   }
                   onClick={() => onAction(next.action, next.role)}
                 >
-                  {next.label}
+                  {next.action === "commission-vote" && role === "commission"
+                    ? "Открыть таблицу голосования"
+                    : next.label}
                 </Button>
               )
             ) : null}
