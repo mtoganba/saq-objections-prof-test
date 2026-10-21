@@ -936,7 +936,7 @@ export default function ActionModal({
                 <span>Печатная форма</span>
                 <b>
                   {action === "create-decision-project"
-                    ? "Проект решения и приложение"
+                    ? "Проект решения"
                     : requiresMotivatedResponseType(c.appealType)
                       ? "Мотивированный ответ и приложение"
                       : "Окончательный ответ и приложение"}
