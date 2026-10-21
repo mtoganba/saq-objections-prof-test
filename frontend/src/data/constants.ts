@@ -5,12 +5,12 @@ export const TYPES = {
 } as const;
 export const ROLES = {
   "demo-superuser": "Демо-суперпользователь",
-  work: "Рабочий орган",
+  work: "Секретарь комиссии",
   deputy: "Заместитель директора ДАВГА",
-  director: "Директор ДАВГА",
+  director: "Руководитель секретаря",
   dvga: "ДВГА",
   kvga: "КВГА",
-  commission: "Апелляционная комиссия",
+  commission: "Комиссия",
   subject: "Объект",
   subject2: "Объект №2",
   higher: "Вышестоящий орган",

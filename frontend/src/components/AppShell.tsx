@@ -154,7 +154,7 @@ export default function AppShell({
                 value={role}
                 onChange={(event) => onRoleChange(event.target.value as Role)}
               >
-                {Object.entries(ROLES).map(([value, label]) => (
+                {Object.entries(ROLES).filter(([value]) => value !== "higher").map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
