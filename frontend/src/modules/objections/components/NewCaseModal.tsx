@@ -144,25 +144,21 @@ export const SAQ_PREVENTIVE_CONTROL_DOCUMENTS: SaqSourceDocument[] = [
 export function createSaqApplicantObjection({
   state,
   sourceDocument,
-  received,
-  summary,
-  requirements,
   selectedPointIds,
   pointArguments,
-  attachments = [],
+  requirementsAttachments = [],
+  evidenceAttachmentsByPoint = {},
 }: {
   state: DemoState;
   sourceDocument: SaqSourceDocument;
-  received: string;
-  summary: string;
-  requirements: string;
   selectedPointIds: string[];
   pointArguments: Record<string, string>;
-  attachments?: ObjectionCase["documents"];
+  requirementsAttachments?: ObjectionCase["documents"];
+  evidenceAttachmentsByPoint?: Record<string, ObjectionCase["documents"]>;
 }) {
-  if (!summary.trim()) throw new Error("Заполните краткое описание");
-  if (!requirements.trim()) throw new Error("Заполните требования заявителя");
-  dateObject(received);
+  dateObject(state.date);
+  if (!requirementsAttachments.length)
+    throw new Error("Приложите файл с требованиями заявителя");
   const selectedPoints = sourceDocument.points.filter((point) =>
     selectedPointIds.includes(point.id),
   );
@@ -173,6 +169,8 @@ export function createSaqApplicantObjection({
       throw new Error(
         `Заполните довод заявителя по пункту ${point.number}`,
       );
+    if (!evidenceAttachmentsByPoint[point.id]?.length)
+      throw new Error(`Приложите доказательства по пункту ${point.number}`);
   });
 
   const id = nextCaseNumber(
@@ -201,7 +199,7 @@ export function createSaqApplicantObjection({
     document: {
       number: sourceDocument.number,
       date: sourceDocument.date,
-      received,
+      received: state.date,
       name: sourceDocument.name,
     },
     agendaDetails: {
@@ -210,22 +208,27 @@ export function createSaqApplicantObjection({
       applicantIsAuditObjectRepresentative: false,
     },
     amount: 0,
-    request: summary.trim(),
+    request: "",
     issues: selectedPoints.map((point) => ({
       id: point.id,
       number: point.number,
       title: `${point.code} — пункт нарушения № ${point.number}`,
       finding: point.description,
+      authorityFinding: point.description,
       argument: pointArguments[point.id].trim(),
-      evidence: "",
+      evidence: (evidenceAttachmentsByPoint[point.id] || [])
+        .map((document) => document.filename || document.name)
+        .join(", "),
       amount: 0,
       disputed: true,
     })),
   });
   c.submittedViaSaqApplicant = true;
   c.sourceDocumentId = sourceDocument.id;
-  c.applicantRequirements = requirements.trim();
-  c.documents = attachments;
+  c.documents = [
+    ...requirementsAttachments,
+    ...selectedPoints.flatMap((point) => evidenceAttachmentsByPoint[point.id] || []),
+  ];
   c.history.push({
     date: state.date,
     actor: "Заявитель",
@@ -249,6 +252,7 @@ export function createSaqApplicantObjection({
   };
   return { state: next, caseId: id };
 }
+
 
 export default function NewCaseModal({
   state,
@@ -1435,7 +1439,10 @@ export function SaqObjectionSubmissionModal({
       )?.id ?? "",
   );
   const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
-  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [requirementsFiles, setRequirementsFiles] = useState<File[]>([]);
+  const [evidenceFilesByPoint, setEvidenceFilesByPoint] = useState<
+    Record<string, File[]>
+  >({});
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const sourceDocumentsForType = sourceDocuments.filter(
@@ -1469,27 +1476,45 @@ export function SaqObjectionSubmissionModal({
                 ),
               ]),
             );
-            const received = get("received", "Дата получения документа");
-            const attachments = await Promise.all(
-              attachmentFiles.map(async (file) => ({
-                name: file.name,
-                filename: file.name,
-                kind: "attachment" as const,
-                text: "Приложение заявителя к возражению",
-                author: "Заявитель",
-                date: state.date,
-                dataUrl: await fileDataUrl(file),
-              })),
+            const toAttachments = (files: File[], text: string) =>
+              Promise.all(
+                files.map(async (file) => ({
+                  name: file.name,
+                  filename: file.name,
+                  kind: "attachment" as const,
+                  text,
+                  author: "Заявитель",
+                  date: state.date,
+                  dataUrl: await fileDataUrl(file),
+                })),
+              );
+            const requirementsAttachments = await toAttachments(
+              requirementsFiles,
+              "Требования заявителя",
+            );
+            const evidenceAttachmentsByPoint = Object.fromEntries(
+              await Promise.all(
+                selectedPointIds.map(async (pointId) => {
+                  const point = selectedDocument.points.find(
+                    (item) => item.id === pointId,
+                  );
+                  return [
+                    pointId,
+                    await toAttachments(
+                      evidenceFilesByPoint[pointId] || [],
+                      `Доказательства по пункту № ${point?.number ?? ""}`,
+                    ),
+                  ];
+                }),
+              ),
             );
             const result = createSaqApplicantObjection({
               state,
               sourceDocument: selectedDocument,
-              received,
-              summary: get("summary", "Краткое описание"),
-              requirements: get("requirements", "Требования заявителя"),
               selectedPointIds,
               pointArguments: selectedPointArguments,
-              attachments,
+              requirementsAttachments,
+              evidenceAttachmentsByPoint,
             });
             onSave(result.state, result.caseId);
             onClose();
@@ -1637,18 +1662,51 @@ export function SaqObjectionSubmissionModal({
                     </label>
                     <p>{point.description}</p>
                     {checked && (
-                      <label className="field">
-                        <span>
-                          Довод заявителя по пункту № {point.number}
-                          <span className="required"> *</span>
-                        </span>
-                        <textarea
-                          name={`argument_${point.id}`}
-                          rows={4}
-                          required
-                          placeholder="Почему вы не согласны с этим пунктом?"
-                        />
-                      </label>
+                      <>
+                        <label className="field">
+                          <span>
+                            Довод заявителя по пункту № {point.number}
+                            <span className="required"> *</span>
+                          </span>
+                          <textarea
+                            name={`argument_${point.id}`}
+                            rows={4}
+                            required
+                            placeholder="Почему вы не согласны с этим пунктом?"
+                          />
+                        </label>
+                        <label className="field">
+                          <span>
+                            Доказательства по пункту № {point.number}
+                            <span className="required"> *</span>
+                          </span>
+                          <input
+                            type="file"
+                            accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
+                            multiple
+                            required={!evidenceFilesByPoint[point.id]?.length}
+                            onChange={(event) =>
+                              setEvidenceFilesByPoint((current) => ({
+                                ...current,
+                                [point.id]: Array.from(
+                                  event.target.files ?? [],
+                                ),
+                              }))
+                            }
+                          />
+                          {evidenceFilesByPoint[point.id]?.length ? (
+                            <small>
+                              {evidenceFilesByPoint[point.id]
+                                .map((file) => file.name)
+                                .join(", ")}
+                            </small>
+                          ) : (
+                            <small>
+                              Приложите подтверждающие документы по этому пункту.
+                            </small>
+                          )}
+                        </label>
+                      </>
                     )}
                   </div>
                 </section>
@@ -1656,12 +1714,6 @@ export function SaqObjectionSubmissionModal({
             })}
 
             <div className="form-grid">
-              <label className="field">
-                <span>
-                  Дата получения документа<span className="required"> *</span>
-                </span>
-                <input type="date" name="received" required />
-              </label>
               <div className="field">
                 <span>Номер и дата возражения</span>
                 <small>
@@ -1672,40 +1724,22 @@ export function SaqObjectionSubmissionModal({
 
             <label className="field">
               <span>
-                Краткое описание<span className="required"> *</span>
-              </span>
-              <textarea
-                name="summary"
-                rows={3}
-                required
-                placeholder="Кратко опишите суть возражения"
-              />
-            </label>
-            <label className="field">
-              <span>
                 Требования заявителя<span className="required"> *</span>
               </span>
-              <textarea
-                name="requirements"
-                rows={4}
-                required
-                placeholder="Например: исключить вывод по пункту и отменить предписание в этой части"
-              />
-            </label>
-            <label className="field">
-              <span>Приложения к возражению</span>
               <input
                 type="file"
+                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
                 multiple
                 onChange={(event) =>
-                  setAttachmentFiles(Array.from(event.target.files ?? []))
+                  setRequirementsFiles(Array.from(event.target.files ?? []))
                 }
+                required={!requirementsFiles.length}
               />
-              <small>При необходимости приложите подтверждающие документы.</small>
+              <small>Приложите файл с требованиями по возражению.</small>
             </label>
-            {attachmentFiles.length > 0 && (
+            {requirementsFiles.length > 0 && (
               <p className="muted">
-                Файлов выбрано: {attachmentFiles.length} — {attachmentFiles.map((file) => file.name).join(", ")}
+                Файлов выбрано: {requirementsFiles.length} — {requirementsFiles.map((file) => file.name).join(", ")}
               </p>
             )}
           </>
