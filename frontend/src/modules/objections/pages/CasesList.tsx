@@ -502,7 +502,7 @@ export default function CasesList({
                           ? c.requests.find((request) =>
                               isRequestForAuthority(request, role),
                             )?.sent || c.registered
-                          : c.registered,
+                          : c.intakeDate || c.registered,
                       )}
                     </span>
                   </td>
