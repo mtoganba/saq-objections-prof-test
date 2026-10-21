@@ -179,7 +179,7 @@ test("SAQ object cabinet can choose an act and automatically see its data and vi
 test("secretary fills the SAQ short description in the case overview", () => {
   const c = structuredClone(initialState().cases[0]);
   c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
-  c.submittedViaSaqApplicant = true;
+  c.submittedViaSaqApplicant = false;
   c.request = "";
   const html = renderToStaticMarkup(
     createElement(CaseWorkspace, {

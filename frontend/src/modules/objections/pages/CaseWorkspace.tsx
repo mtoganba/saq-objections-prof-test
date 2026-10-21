@@ -695,10 +695,7 @@ export default function CaseWorkspace({
     c.appealType,
   );
   const preventiveControl = isPreventiveControlObjectionType(c.appealType);
-  const canEditSummary =
-    role === "work" &&
-    c.submittedViaSaqApplicant &&
-    preventiveControl;
+  const canEditSummary = role === "work" && preventiveControl;
   const currentExecutionDeadline = executionDeadline(c, role);
   const authorityRequests = c.requests.filter((request) =>
     isRequestForAuthority(request, role),

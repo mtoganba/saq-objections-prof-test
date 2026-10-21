@@ -2134,7 +2134,6 @@ export default function ObjectionsModule() {
               onSummarySave={(summary) => {
                 if (
                   model.role !== "work" ||
-                  !c.submittedViaSaqApplicant ||
                   !isPreventiveControlObjectionType(c.appealType)
                 )
                   return;
