@@ -1072,7 +1072,10 @@ export function applyAction(
     }
     case "request": {
       const recipient = text("recipient", "Кому направить запрос");
-      if (isPreventiveControlObjectionType(c.appealType))
+      if (
+        c.submittedViaSaqApplicant &&
+        isPreventiveControlObjectionType(c.appealType)
+      )
         c.request = text("summary", "Краткое описание обращения");
       const deadline = `${addWorkdays(date, 2)}T18:00`;
       const requestId = `request-${c.requests.length + 1}`;
