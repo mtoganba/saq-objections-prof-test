@@ -20,7 +20,9 @@ import ActionModal, { Field } from "./components/ActionModal";
 import AgendaModal, { agendaDocumentHtml } from "./components/AgendaModal";
 import AgendaResultsModal from "./components/AgendaResultsModal";
 import DocumentModal from "./components/DocumentModal";
-import NewCaseModal from "./components/NewCaseModal";
+import NewCaseModal, {
+  SaqObjectionSubmissionModal,
+} from "./components/NewCaseModal";
 import CasesList from "./pages/CasesList";
 import CaseWorkspace from "./pages/CaseWorkspace";
 import NotificationsPage from "./pages/NotificationsPage";
@@ -59,7 +61,7 @@ type DialogState =
   | { type: "attendance"; cases: ObjectionCase[] }
   | { type: "attendance-answer"; notificationId: string }
   | { type: "meeting" }
-  | { type: "new" | "clock" | "reset" | "upload" }
+  | { type: "new" | "submit-objection" | "clock" | "reset" | "upload" }
   | null;
 
 function recommendationRecipientRole(
@@ -326,13 +328,14 @@ export default function ObjectionsModule() {
     return (
       hasMotivatedResponse ||
       (isApplicantCabinet &&
-        (item.requests.some(
-          (request) =>
-            request.template === "other" &&
-            request.saqRecipient === "subject" &&
-            Boolean(request.sent) &&
-            !request.responded,
-        ) ||
+        (item.submittedViaSaqApplicant ||
+          item.requests.some(
+            (request) =>
+              request.template === "other" &&
+              request.saqRecipient === "subject" &&
+              Boolean(request.sent) &&
+              !request.responded,
+          ) ||
           Boolean(
             item.decisionProjectRouting?.channel === "saq" &&
               [
@@ -2083,7 +2086,13 @@ export default function ObjectionsModule() {
           date={model.state.date}
           role={model.role}
           onOpen={openCase}
-          onCreate={() => setDialog({ type: "new" })}
+          onCreate={() =>
+            setDialog(
+              model.role === "subject2"
+                ? { type: "submit-objection" }
+                : { type: "new" },
+            )
+          }
           onExport={(cases) =>
             downloadFile(
               "saq-objections.csv",
@@ -2637,6 +2646,16 @@ export default function ObjectionsModule() {
           onClose={close}
           onSave={(next, caseId) => {
             model.commit(next, "Тестовое обращение зарегистрировано");
+            model.navigate({ page: "detail", caseId });
+          }}
+        />
+      )}
+      {dialog?.type === "submit-objection" && (
+        <SaqObjectionSubmissionModal
+          state={model.state}
+          onClose={close}
+          onSave={(next, caseId) => {
+            model.commit(next, "Заявитель подал возражение через кабинет SAQ");
             model.navigate({ page: "detail", caseId });
           }}
         />
