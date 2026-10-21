@@ -282,6 +282,14 @@ export function actionForm(
       break;
     case "request":
       title = "Сформировать запрос в ДВГА/КВГА";
+      if (isPreventiveControlObjectionType(c.appealType))
+        fields.push(
+          area(
+            "summary",
+            "Краткое описание обращения",
+            values.summary || c.request,
+          ),
+        );
       const deadline = input(
         "deadline",
         "Срок рассмотрения",
