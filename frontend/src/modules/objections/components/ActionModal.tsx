@@ -10,6 +10,7 @@ import { DEMO_USER } from "../../../config";
 import { OUTCOMES } from "../../../data/constants";
 import { downloadFile } from "../../../utils/download";
 import {
+  isPreventiveControlObjectionType,
   requiresMotivatedResponseType,
   usesStatementReviewScenario,
 } from "../appealTypes";
@@ -498,6 +499,8 @@ export default function ActionModal({
   const activeCommissionVoter = commissionMemberId
     ? c.members.find((member) => member.id === commissionMemberId)
     : undefined;
+  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
+  const preventiveControlRequest = action === "request" && preventiveCase;
   const isRequest = action === "request" || action === "request-saq";
   const isAnalysis = action === "analysis";
   const isOtherRequest = action === "request-saq";
@@ -733,7 +736,9 @@ export default function ActionModal({
                 className={requestTab === "print" ? "active" : ""}
                 onClick={() => setRequestTab("print")}
               >
-                Печатная форма
+                {preventiveControlRequest
+                  ? "Печатная форма приложения"
+                  : "Печатная форма"}
               </button>
             </div>
             <div hidden={requestTab !== "form"} className="form-grid">
@@ -790,7 +795,7 @@ export default function ActionModal({
             <div hidden={requestTab !== "print"} className="request-print-preview">
               <DocumentContent
                 c={c}
-                kind="request"
+                kind={preventiveControlRequest ? "request-appendix" : "request"}
                 requestPreview={{
                   recipient: requestRecipient,
                   deadline: requestDeadline,
