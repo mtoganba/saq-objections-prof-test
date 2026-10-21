@@ -44,16 +44,18 @@ function appendixDocumentHtml(c: ObjectionCase, document: NonNullable<ObjectionC
 function finalResponsePrintHtml(
   c: ObjectionCase,
   finalResponseMajorityByPoint: Record<string, boolean>,
+  motivatedResponseText?: string,
 ) {
   const content = renderToStaticMarkup(
     <DocumentContent
       c={c}
       kind="final-response"
       finalResponseMajorityByPoint={finalResponseMajorityByPoint}
+      motivatedResponseText={motivatedResponseText}
     />,
   );
   return `<!doctype html>
-<html lang="kk"><head><meta charset="utf-8"><title>Окончательный ответ</title>
+<html lang="kk"><head><meta charset="utf-8"><title>${requiresMotivatedResponseType(c.appealType) ? "Мотивированный ответ" : "Окончательный ответ"}</title>
 <style>
   @page { size: A4; margin: 18mm; }
   * { box-sizing: border-box; }
@@ -549,7 +551,16 @@ export default function ActionModal({
       );
       return;
     }
-    popup.document.write(finalResponsePrintHtml(c, finalResponseMajorityByPoint));
+    popup.document.write(
+      finalResponsePrintHtml(
+        c,
+        finalResponseMajorityByPoint,
+        values.motivatedResponseText ??
+          c.motivatedResponseText ??
+          c.decisionProject?.text ??
+          "",
+      ),
+    );
     popup.document.close();
     popup.focus();
     popup.print();
@@ -939,13 +950,9 @@ export default function ActionModal({
             </div>
             <div hidden={requestTab !== "form"} className="form-grid">
               {definition.fields.map((field) => <Field key={field.name} field={field} />)}
-              {(action === "deliver" || action === "create-decision-project") && disputed(c).length > 0 && (
+              {action === "deliver" && disputed(c).length > 0 && (
                 <div className="field wide">
-                  <span>
-                    {action === "create-decision-project"
-                      ? "Решение по оспариваемым пунктам"
-                      : "Итоговый результат по оспариваемым пунктам"}
-                  </span>
+                  <span>Итоговый результат по оспариваемым пунктам</span>
                   {disputed(c).map((point) => {
                     const checked = Object.hasOwn(
                       values,
@@ -991,6 +998,12 @@ export default function ActionModal({
                   ]),
                 )}
                 decisionProjectText={values.decisionProjectText || ""}
+                motivatedResponseText={
+                  values.motivatedResponseText ??
+                  c.motivatedResponseText ??
+                  c.decisionProject?.text ??
+                  ""
+                }
               />
             </div>
           </>

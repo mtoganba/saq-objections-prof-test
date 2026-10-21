@@ -892,6 +892,7 @@ export function addDocument(
       analysisAppendixArgumentsByPoint:
         c.analysisAppendixArgumentsByPoint || {},
       decisionProject: c.decisionProject || null,
+      motivatedResponseText: c.motivatedResponseText || "",
     }),
   });
 }
@@ -2704,6 +2705,15 @@ export function applyAction(
         break;
       }
       const isMotivatedResponse = requiresMotivatedResponse(c);
+      if (isMotivatedResponse) {
+        c.motivatedResponseText =
+          String(
+            form.get("motivatedResponseText") ??
+              c.motivatedResponseText ??
+              c.decisionProject?.text ??
+              "",
+          ).trim();
+      }
       c.delivery = {
         date,
         number: isMotivatedResponse
@@ -2752,10 +2762,12 @@ export function applyAction(
           ? "Проект мотивированного ответа"
           : "Проект окончательного ответа",
         "final-response",
-        c.result?.reason ||
-          (isMotivatedResponse
-            ? "Мотивированный ответ сформирован и ожидает согласования."
-            : "Окончательный ответ сформирован и ожидает согласования."),
+        isMotivatedResponse
+          ? c.motivatedResponseText ||
+            c.result?.reason ||
+            "Мотивированный ответ сформирован и ожидает согласования."
+          : c.result?.reason ||
+            "Окончательный ответ сформирован и ожидает согласования.",
       );
       doc(
         requiresConclusion(c)

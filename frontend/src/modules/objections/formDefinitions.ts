@@ -757,6 +757,13 @@ export function actionForm(
               : "saq",
           ),
         );
+        fields.push(
+          area(
+            "motivatedResponseText",
+            "Текст мотивированного ответа",
+            c.motivatedResponseText ?? c.decisionProject?.text ?? "",
+          ),
+        );
         if (!subjectCabinetAvailable)
           note =
             "Кабинет заявителя в SAQ не найден. После подписи зафиксируйте внешнее направление: дату, способ или систему, исходящий номер (ID) и файл-подтверждение.";

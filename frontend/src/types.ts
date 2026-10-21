@@ -317,6 +317,7 @@ export interface CaseDocument {
     hearing: Hearing | null;
     delivery: Delivery | null;
     decisionProject?: DecisionProject | null;
+    motivatedResponseText?: string;
     certificate: CaseCertificate | null;
     /** Адресаты и их ответы на момент формирования версии документа. */
     requests?: CaseRequest[];
@@ -627,6 +628,8 @@ export interface ObjectionCase {
   /** Реквизиты регистрации заключения по возражению на уведомление. */
   conclusionRegistration?: { date: string; number: string };
   decisionProject?: DecisionProject | null;
+  /** Текст мотивированного ответа, перенесённый из проекта решения и отредактированный РО. */
+  motivatedResponseText?: string;
   /** Выбранный при создании проекта решения способ направления заявителю. */
   decisionProjectRecipients?: DecisionProjectRecipient[];
   /** Реквизиты направления проекта решения и замечаний заявителя. */

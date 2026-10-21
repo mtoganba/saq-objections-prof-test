@@ -34,6 +34,7 @@ import {
 import {
   PREVENTIVE_CONTROL_ACT_OBJECTION,
   isPreventiveControlObjectionType,
+  requiresMotivatedResponseType,
 } from "../appealTypes";
 
 function requestDeadlineDate(deadline: string) {
@@ -239,6 +240,7 @@ export function DocumentContent({
   protocolPreview,
   finalResponseMajorityByPoint,
   decisionProjectText,
+  motivatedResponseText,
 }: {
   c: ObjectionCase;
   kind: string;
@@ -258,6 +260,7 @@ export function DocumentContent({
   certificatePreview?: CaseCertificate;
   finalResponseMajorityByPoint?: Record<string, boolean>;
   decisionProjectText?: string;
+  motivatedResponseText?: string;
   protocolPreview?: {
     date: string;
     number: string;
@@ -754,15 +757,19 @@ export function DocumentContent({
     });
     const appendixPages = appendixPageCount(appendixPoints);
     const isDecisionProject = kind === "decision-project";
+    const isMotivatedResponse = requiresMotivatedResponseType(snapshot.appealType);
+    const authoredResponseText = isDecisionProject
+      ? decisionProjectText ?? snapshot.decisionProject?.text ?? ""
+      : motivatedResponseText ??
+        snapshot.motivatedResponseText ??
+        snapshot.decisionProject?.text ??
+        "";
     return (
       <div className="final-response-document">
         <article className="print-document final-response-template">
           <div className="final-response-recipient">
             {isDecisionProject ? (
-              <>
-                <p>Заявителю</p>
-                <p>{snapshot.org}</p>
-              </>
+              <p>{snapshot.org}</p>
             ) : (
               <>
                 <p>{snapshot.org}</p>
@@ -771,11 +778,9 @@ export function DocumentContent({
             )}
           </div>
           <div className="final-response-body">
-            {isDecisionProject ? (
+            {isDecisionProject || isMotivatedResponse ? (
               <div className="decision-project-authored-text">
-                {decisionProjectText ??
-                  snapshot.decisionProject?.text ??
-                  ""}
+                {authoredResponseText}
               </div>
             ) : (
               <>
@@ -863,7 +868,7 @@ export function DocumentContent({
     const commissionMembers = presentMembers.filter(
       (member) => member.id !== presidingMember?.id,
     );
-    const presidingLabel = "Председатель АК";
+    const presidingLabel = "Председатель комиссии";
     const secretaryName =
       snapshot.assignee && snapshot.assignee !== "Не назначен"
         ? snapshot.assignee
@@ -919,7 +924,7 @@ export function DocumentContent({
         <h1>
           ПРОТОКОЛ{protocolNumber ? ` № ${protocolNumber}` : ""}
           <br />
-          заседания Апелляционной комиссии
+          заседания комиссии
         </h1>
         <div className="protocol-template-place-date">
           <span>город Астана</span>
@@ -937,7 +942,7 @@ export function DocumentContent({
               </div>
               {commissionMembers.length ? (
                 <div className="protocol-template-attendance-row">
-                  <b>Члены Апелляционной комиссии:</b>
+                  <b>Члены комиссии:</b>
                   <span className="protocol-template-attendance-members">
                     {commissionMembers.map((member) => (
                       <span key={member.id}>{member.name}</span>
@@ -948,7 +953,7 @@ export function DocumentContent({
             </>
           ) : presentMembers.length ? (
             <div className="protocol-template-attendance-row">
-              <b>Члены Апелляционной комиссии:</b>
+              <b>Члены комиссии:</b>
               <span className="protocol-template-attendance-members">
                 {presentMembers.map((member) => (
                   <span key={member.id}>{member.name}</span>
@@ -959,7 +964,7 @@ export function DocumentContent({
             "—"
           )}
           <div className="protocol-template-attendance-row">
-            <b>Секретарь Апелляционной комиссии:</b>
+            <b>Секретарь комиссии:</b>
             <span>{secretaryName}</span>
           </div>
         </div>
@@ -971,19 +976,19 @@ export function DocumentContent({
           </span>
           <br />
           <span style={{ display: "block", textAlign: "left" }}>
-            Количество присутствовавших членов Апелляционной комиссии:{" "}
+            Количество присутствовавших членов комиссии:{" "}
             {presentMembers.length}.
           </span>
           <br />
           <span style={{ display: "block", textAlign: "left" }}>
-            <b>Результаты голосования членов Апелляционной комиссии:</b>
+            <b>Результаты голосования членов комиссии:</b>
           </span>
         </p>
         <table className="protocol-votes-table">
           <thead>
             <tr>
               <th>№</th>
-              <th>Суть вопроса / член Апелляционной комиссии</th>
+              <th>Суть вопроса / член комиссии</th>
               <th>Голос</th>
               <th>Обоснование</th>
             </tr>
@@ -1030,7 +1035,7 @@ export function DocumentContent({
           </tbody>
         </table>
         <p className="protocol-template-result">
-          На основании результатов голосования членов Апелляционной комиссии
+          На основании результатов голосования членов комиссии
           принято РЕШЕНИЕ {decision} {snapshot.appealType} {snapshot.org} от{" "}
           {formatDate(snapshot.appealDate || snapshot.filed)} года №
           {snapshot.appealNumber || snapshot.document.number}.
@@ -1043,11 +1048,11 @@ export function DocumentContent({
           ) : null}
           {commissionMembers.map((member) => (
             <p key={member.id}>
-              Член Апелляционной комиссии: __________________ {member.name}
+              Член комиссии: __________________ {member.name}
             </p>
           ))}
           <p>
-            Секретарь Апелляционной комиссии: __________________ {secretaryName}
+            Секретарь комиссии: __________________ {secretaryName}
           </p>
         </div>
       </article>
