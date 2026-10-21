@@ -4,7 +4,11 @@ import type {
   NewCaseInput,
   ObjectionCase,
 } from "../types";
-import { PREVENTIVE_CONTROL_ACT_OBJECTION } from "../modules/objections/appealTypes";
+import {
+  isPreventiveControlObjectionType,
+  PREVENTIVE_CONTROL_ACT_OBJECTION,
+} from "../modules/objections/appealTypes";
+import { addWorkdays } from "../modules/objections/services/deadlines";
 
 export const COMMISSION_ATTENDANCE_MEMBERS: CommissionAttendanceMember[] = [
   {
@@ -40,10 +44,18 @@ export function members(): CommissionMember[] {
 }
 export function makeCase(c: NewCaseInput): ObjectionCase {
   const receivedViaSaq = c.channel === "SAQ";
+  const intakeDate = c.intakeDate || c.registered;
+  const registrationMethod = c.registrationMethod || "manual";
+  const preventiveControl = isPreventiveControlObjectionType(c.appealType);
   return {
     ...c,
+    intakeDate,
+    registrationMethod,
     status: receivedViaSaq ? "received" : "accepted",
     assignee: receivedViaSaq ? "Не назначен" : "Исполнитель рабочего органа",
+    secretaryDeadline: preventiveControl
+      ? c.secretaryDeadline || addWorkdays(intakeDate, 10)
+      : c.secretaryDeadline,
     unread: receivedViaSaq,
     extensionDays: 0,
     pauseDays: 0,
@@ -53,13 +65,17 @@ export function makeCase(c: NewCaseInput): ObjectionCase {
     history: [
       {
         date: c.registered,
-        actor: "Объект",
+        actor: registrationMethod === "automatic" ? "Система SAQ" : "Секретарь комиссии",
         title: receivedViaSaq
-          ? "Обращение поступило через SAQ"
-          : "Обращение создано вручную",
+          ? registrationMethod === "automatic"
+            ? "Обращение поступило через SAQ"
+            : "Обращение внесено вручную из источника SAQ"
+          : "Обращение зарегистрировано вручную",
         text: receivedViaSaq
-          ? "Обращение направлено директору ДАВГА для выбора исполнителя рабочего органа."
-          : "Обращение зарегистрировано и сразу направлено на формирование запроса.",
+          ? registrationMethod === "automatic"
+            ? "Обращение передано руководителю секретаря для выбора исполнителя."
+            : "Источник поступления — SAQ. В текущем процессе карточка внесена вручную и передана руководителю секретаря для выбора исполнителя."
+          : `Источник поступления — ${c.channel}. Карточка внесена секретарем вручную.`,
       },
     ],
   };
