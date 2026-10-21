@@ -1206,6 +1206,10 @@ test("запросы в ДВГА и КВГА формируются, напра�
       ]),
   );
   h.run("fill-request-response", "dvga", response);
+  assert.equal(
+    h.c.documents.some((document) => document.kind === "authority-response"),
+    false,
+  );
   const originalDvgaAppendix = h.c.documents.find(
     (document) =>
       document.kind === "request-appendix" &&

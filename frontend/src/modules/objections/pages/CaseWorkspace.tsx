@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { Button, Notice, PageHeading } from "../../../components/ui";
 import { CLOSED, OUTCOMES, STATUS, TYPES } from "../../../data/constants";
 import type {
@@ -237,7 +237,7 @@ function PointCard({
       <div hidden={!expanded}>
         {point.finding && (
           <p>
-            <b>Документы подтверждающие нарушение:</b> {point.finding}
+            <b>Нарушение:</b> {point.finding}
           </p>
         )}
         <p>
@@ -625,6 +625,7 @@ export default function CaseWorkspace({
   onAction,
   onDocument,
   onUpload,
+  onSummarySave,
 }: {
   c: ObjectionCase;
   /** Текущая дата демонстрационного календаря SAQ. */
@@ -639,8 +640,11 @@ export default function CaseWorkspace({
   onAction: (action: Action, role: Role, requestId?: string) => void;
   onDocument: (kind: string, document?: CaseDocument) => void;
   onUpload: () => void;
+  onSummarySave?: (summary: string) => void;
 }) {
   const [issuesExpanded, setIssuesExpanded] = useState(true);
+  const [summaryDraft, setSummaryDraft] = useState(c.request || "");
+  useEffect(() => setSummaryDraft(c.request || ""), [c.id, c.request]);
   const agendaDetails = c.agendaDetails;
   const isActionComplaint = c.appealType === "Жалоба на действие/бездействие";
   const actionAppealAuthorities = agendaDetails?.actionAppealAuthorities || [];
@@ -691,6 +695,10 @@ export default function CaseWorkspace({
     c.appealType,
   );
   const preventiveControl = isPreventiveControlObjectionType(c.appealType);
+  const canEditSummary =
+    role === "work" &&
+    c.submittedViaSaqApplicant &&
+    preventiveControl;
   const currentExecutionDeadline = executionDeadline(c, role);
   const authorityRequests = c.requests.filter((request) =>
     isRequestForAuthority(request, role),
@@ -1059,15 +1067,40 @@ export default function CaseWorkspace({
                       wide
                     />
                   )}
-                  <Fact
-                    label={
-                      c.appealType === "Заявление"
-                        ? "О чем заявление"
-                        : "Краткое описание"
-                    }
-                    value={c.request}
-                    wide
-                  />
+                  {canEditSummary ? (
+                    <div className="fact full case-summary-editor">
+                      <span>Краткое описание обращения</span>
+                      <textarea
+                        aria-label="Краткое описание обращения"
+                        rows={3}
+                        value={summaryDraft}
+                        onChange={(event) => setSummaryDraft(event.target.value)}
+                        placeholder="Введите краткое описание обращения"
+                      />
+                      <div className="case-summary-actions">
+                        <Button
+                          primary
+                          disabled={
+                            !summaryDraft.trim() ||
+                            summaryDraft.trim() === String(c.request || "").trim()
+                          }
+                          onClick={() => onSummarySave?.(summaryDraft.trim())}
+                        >
+                          Сохранить описание
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <Fact
+                      label={
+                        c.appealType === "Заявление"
+                          ? "О чем заявление"
+                          : "Краткое описание"
+                      }
+                      value={c.request}
+                      wide
+                    />
+                  )}
                 </div>
                 {c.affectedParties && <Notice>{c.affectedParties}</Notice>}
                 <div className="issues-section-heading">
@@ -1606,7 +1639,6 @@ export default function CaseWorkspace({
                                   document.requestId === request.id &&
                                   (isAuthorityRequest
                                     ? [
-                                        "authority-response",
                                         "authority-response-appendix",
                                         "authority-response-attachment",
                                         "response-attachment",
@@ -1852,9 +1884,10 @@ export default function CaseWorkspace({
                 {c.documents
                   .filter(
                     (document) =>
-                      role === "commission" ||
-                      !hideRequestBlocks ||
-                      !["request", "request-appendix"].includes(document.kind),
+                      document.kind !== "authority-response" &&
+                      (role === "commission" ||
+                        !hideRequestBlocks ||
+                        !["request", "request-appendix"].includes(document.kind)),
                   )
                   .map((document, index) => (
                     <div className="document-row" key={index}>

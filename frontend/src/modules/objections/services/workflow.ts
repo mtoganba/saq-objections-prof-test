@@ -1072,11 +1072,6 @@ export function applyAction(
     }
     case "request": {
       const recipient = text("recipient", "Кому направить запрос");
-      if (
-        c.submittedViaSaqApplicant &&
-        isPreventiveControlObjectionType(c.appealType)
-      )
-        c.request = text("summary", "Краткое описание обращения");
       const deadline = `${addWorkdays(date, 2)}T18:00`;
       const requestId = `request-${c.requests.length + 1}`;
       note = `Запрос сформирован для ${recipient}. Срок рассмотрения: ${deadline}.`;
@@ -1677,14 +1672,6 @@ export function applyAction(
         "Мотивированные ответы ДВГА/КВГА заполнены по всем оспариваемым пунктам.";
       c.status =
         requestRoutingStatus(c) || authorityStatus(c) || "response_approval";
-      doc(
-        request.route === "additional-hearing"
-          ? "Дополнительный мотивированный ответ ДВГА/КВГА по дополнительному запросу"
-          : "Мотивированный ответ ДВГА/КВГА",
-        "authority-response",
-        note,
-        request.id,
-      );
       break;
     }
     case "approve-response": {

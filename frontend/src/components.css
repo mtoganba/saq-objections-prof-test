@@ -221,6 +221,14 @@
 .fact.full {
   grid-column: 1/-1;
 }
+.case-summary-editor textarea {
+  width: 100%;
+}
+.case-summary-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
 .fact > span {
   display: block;
   color: var(--muted);

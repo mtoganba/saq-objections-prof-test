@@ -2131,6 +2131,28 @@ export default function ObjectionsModule() {
               recommendations={model.state.recommendations}
               onBack={() => model.navigate({ page: "registry" })}
               onTab={(tab) => model.navigate({ ...model.route, tab })}
+              onSummarySave={(summary) => {
+                if (
+                  model.role !== "work" ||
+                  !c.submittedViaSaqApplicant ||
+                  !isPreventiveControlObjectionType(c.appealType)
+                )
+                  return;
+                const next = structuredClone(model.state);
+                const updated = next.cases.find((item) => item.id === c.id);
+                if (!updated) return;
+                const value = summary.trim();
+                if (!value || value === String(updated.request || "").trim())
+                  return;
+                updated.request = value;
+                updated.history.push({
+                  date: next.date,
+                  actor: ROLES.work,
+                  title: "Краткое описание обращения заполнено",
+                  text: value,
+                });
+                model.commit(next, "Краткое описание обращения сохранено.");
+              }}
               onAction={(action, role, requestId) => {
                 if (
                   action === "record-external-response" ||

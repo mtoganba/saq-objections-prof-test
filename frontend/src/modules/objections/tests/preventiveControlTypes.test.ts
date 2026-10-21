@@ -17,6 +17,7 @@ import {
 import { DocumentContent } from "../components/DocumentModal";
 import { actionForm } from "../formDefinitions";
 import ActionModal from "../components/ActionModal";
+import CaseWorkspace from "../pages/CaseWorkspace";
 import ConsiderationProcess from "../components/ConsiderationProcess";
 import {
   executionDeadline,
@@ -175,6 +176,30 @@ test("SAQ object cabinet can choose an act and automatically see its data and vi
   assert.doesNotMatch(html, /textarea[^>]*name="requirements"/);
 });
 
+test("secretary fills the SAQ short description in the case overview", () => {
+  const c = structuredClone(initialState().cases[0]);
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  c.submittedViaSaqApplicant = true;
+  c.request = "";
+  const html = renderToStaticMarkup(
+    createElement(CaseWorkspace, {
+      c,
+      tab: "overview",
+      role: "work",
+      onBack() {},
+      onTab() {},
+      onAction() {},
+      onDocument() {},
+      onUpload() {},
+      onSummarySave() {},
+    }),
+  );
+
+  assert.match(html, /Краткое описание обращения/);
+  assert.match(html, /aria-label="Краткое описание обращения"/);
+  assert.match(html, /Сохранить описание/);
+});
+
 test("SAQ filing creates an automatically numbered case with only selected act points", () => {
   const state = initialState();
   const sourceDocument = SAQ_PREVENTIVE_CONTROL_DOCUMENTS[0];
@@ -265,7 +290,7 @@ test("SAQ filing creates an automatically numbered case with only selected act p
   );
 });
 
-test("SAQ violation descriptions appear in the request appendix and the secretary fills the summary after assignment", () => {
+test("SAQ violation descriptions appear in the request appendix; the secretary fills the summary in the case overview", () => {
   const state = initialState();
   const sourceDocument = SAQ_PREVENTIVE_CONTROL_DOCUMENTS[0];
   const makeAttachment = (name: string, text: string) => ({
@@ -310,15 +335,12 @@ test("SAQ violation descriptions appear in the request appendix and the secretar
     {},
     "work",
   );
-  assert.ok(
-    requestDefinition.fields.some(
-      (field) =>
-        field.name === "summary" &&
-        field.label === "Краткое описание обращения",
-    ),
+  assert.equal(
+    requestDefinition.fields.some((field) => field.name === "summary"),
+    false,
   );
+  assignedCase.request = "Возражение по пункту 2 акта";
   const requestForm = new FormData();
-  requestForm.set("summary", "Возражение по пункту 2 акта");
   requestForm.set("recipient", "ДВГА по г. Астана");
   requestForm.set("executor", "Секретарь комиссии");
   const requested = applyAction(
@@ -348,6 +370,51 @@ test("SAQ violation descriptions appear in the request appendix and the secretar
     /Выявлено нарушение по предоставлению отчетности в части количества нарушения 2/,
   );
   assert.doesNotMatch(appendixHtml, /количества нарушения 3/);
+});
+
+test("SAQ act violation is prefilled for the authority, while manual cases stay blank", () => {
+  const saqCase = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
+  const point = saqCase.issues.find((item) => item.disputed)!;
+  point.authorityFinding = "Выявлено нарушение по акту №57";
+  saqCase.submittedViaSaqApplicant = true;
+  saqCase.requests = [
+    {
+      id: "request-1",
+      recipient: "КВГА",
+      date: "2026-09-08",
+      text: "Запрос",
+      deadline: "2026-09-10",
+      template: "dvga",
+    },
+  ];
+
+  const saqForm = actionForm(
+    "fill-request-response",
+    saqCase,
+    "2026-09-08",
+    {},
+    "kvga",
+  );
+  assert.equal(
+    saqForm.fields.find((field) => field.name === `authorityFinding_${point.id}`)
+      ?.value,
+    "Выявлено нарушение по акту №57",
+  );
+
+  const manualCase = structuredClone(saqCase);
+  manualCase.submittedViaSaqApplicant = false;
+  const manualForm = actionForm(
+    "fill-request-response",
+    manualCase,
+    "2026-09-08",
+    {},
+    "kvga",
+  );
+  assert.equal(
+    manualForm.fields.find((field) => field.name === `authorityFinding_${point.id}`)
+      ?.value,
+    "",
+  );
 });
 
 test("preventive-control objections use the statement review scenario", () => {

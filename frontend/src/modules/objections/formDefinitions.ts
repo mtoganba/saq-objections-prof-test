@@ -282,17 +282,6 @@ export function actionForm(
       break;
     case "request":
       title = "Сформировать запрос в ДВГА/КВГА";
-      if (
-        c.submittedViaSaqApplicant &&
-        isPreventiveControlObjectionType(c.appealType)
-      )
-        fields.push(
-          area(
-            "summary",
-            "Краткое описание обращения",
-            values.summary || c.request,
-          ),
-        );
       const deadline = input(
         "deadline",
         "Срок рассмотрения",
@@ -394,7 +383,8 @@ export function actionForm(
           area(
             `authorityFinding_${point.id}`,
             "Нарушение, по которым поступило возражение",
-            authorityRequest?.authorityResponses?.[point.id]?.finding,
+            authorityRequest?.authorityResponses?.[point.id]?.finding ??
+              (c.submittedViaSaqApplicant ? point.authorityFinding : ""),
           ),
           area(
             `authorityResponse_${point.id}`,
