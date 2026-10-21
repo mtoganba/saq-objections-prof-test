@@ -540,6 +540,12 @@ export interface ObjectionCase {
   intakeDate?: string;
   /** Способ внесения карточки в SAQ, отдельно от источника обращения. */
   registrationMethod?: "automatic" | "manual";
+  /** Обращение подано заявителем из его кабинета SAQ. */
+  submittedViaSaqApplicant?: boolean;
+  /** Идентификатор выбранного заявителем документа из источника SAQ. */
+  sourceDocumentId?: string;
+  /** Текст требований, заполненный заявителем в кабинете SAQ. */
+  applicantRequirements?: string;
   filed: string;
   channel: string;
   issuer: string;
