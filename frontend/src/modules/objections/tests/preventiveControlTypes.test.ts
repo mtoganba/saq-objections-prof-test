@@ -1,0 +1,138 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { initialState } from "../../../api/objectionsRepository";
+import type { ObjectionCase } from "../../../types";
+import {
+  PREVENTIVE_CONTROL_ACT_OBJECTION,
+  PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+  preventiveControlSourceDocumentLabels,
+} from "../appealTypes";
+import { actionForm } from "../formDefinitions";
+import { reviewDuration } from "../services/deadlines";
+import { additionalActions, nextAction } from "../services/workflow";
+import {
+  agendaOrProtocolIntro,
+  certificateTemplateIntro,
+  requestTemplateIntro,
+} from "../services/appealTemplates";
+import { kazakhDecisionIntro } from "../components/DocumentModal";
+import NewCaseModal from "../components/NewCaseModal";
+import { caseNumberPrefix } from "../services/caseNumbering";
+
+function preventiveCase(appealType: string): ObjectionCase {
+  const c = structuredClone(initialState().cases[0]);
+  c.type = "control";
+  c.appealType = appealType;
+  c.document = {
+    ...c.document,
+    number: appealType === PREVENTIVE_CONTROL_ACT_OBJECTION ? "А-17" : "П-24",
+    date: "2026-09-03",
+    name:
+      appealType === PREVENTIVE_CONTROL_ACT_OBJECTION
+        ? "Акт о результате профилактического контроля"
+        : "Предписание по профилактическому контролю",
+  };
+  return c;
+}
+
+test("creation form offers the two preventive-control objections and removes procurement portal", () => {
+  const html = renderToStaticMarkup(
+    createElement(NewCaseModal, {
+      state: initialState(),
+      onSave() {},
+      onClose() {},
+    }),
+  );
+
+  assert.match(html, new RegExp(PREVENTIVE_CONTROL_ACT_OBJECTION));
+  assert.match(html, new RegExp(PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION));
+  assert.match(html, /Номер акта о результате/);
+  assert.match(html, /Дата акта о результате/);
+  assert.doesNotMatch(html, /Веб-портал государственных закупок/);
+  assert.match(html, /E-Otinish/);
+  assert.match(html, /ОДО/);
+  assert.match(html, /SAQ/);
+  assert.match(html, /другое/);
+  assert.deepEqual(
+    preventiveControlSourceDocumentLabels(PREVENTIVE_CONTROL_ACT_OBJECTION),
+    {
+      name: "Акт о результате профилактического контроля",
+      number: "Номер акта о результате",
+      date: "Дата акта о результате",
+      reference: "акт о результате профилактического контроля",
+    },
+  );
+  assert.deepEqual(
+    preventiveControlSourceDocumentLabels(
+      PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+    ),
+    {
+      name: "Предписание по профилактическому контролю",
+      number: "Номер предписания",
+      date: "Дата предписания",
+      reference: "предписание по профилактическому контролю",
+    },
+  );
+});
+
+test("preventive-control objections use the statement review scenario", () => {
+  for (const appealType of [
+    PREVENTIVE_CONTROL_ACT_OBJECTION,
+    PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+  ]) {
+    const c = preventiveCase(appealType);
+    assert.equal(reviewDuration(c), 15);
+    assert.equal(caseNumberPrefix(appealType), "В");
+
+    c.status = "materials";
+    assert.ok(
+      additionalActions(c).some(
+        (action) => action.action === "start-analysis-additional-request",
+      ),
+    );
+
+    c.status = "decision_project_hearing";
+    c.decisionProject = {
+      date: "2026-09-10",
+      number: "ПР-1",
+      receipt: "SAQ-1",
+      channel: "saq",
+      appealCourt: "—",
+      appealProcedure: "—",
+    };
+    c.hearing = { skip: false, date: "2026-09-16T10:30", location: "онлайн" };
+    const hearingForm = actionForm(
+      "hearing-after-decision-project",
+      c,
+      "2026-09-16",
+      {},
+    );
+    assert.ok(
+      hearingForm.fields.some((field) => field.name === "hearingOutcome"),
+    );
+
+    c.status = "decided";
+    assert.equal(nextAction(c)?.label, "Сформировать мотивированный ответ");
+  }
+});
+
+test("documents name the disputed preventive-control act or prescription", () => {
+  for (const [appealType, sourceDocument] of [
+    [
+      PREVENTIVE_CONTROL_ACT_OBJECTION,
+      "акт о результате профилактического контроля",
+    ],
+    [
+      PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+      "предписание по профилактическому контролю",
+    ],
+  ] as const) {
+    const c = preventiveCase(appealType);
+    assert.match(agendaOrProtocolIntro(c) || "", new RegExp(sourceDocument));
+    assert.match(requestTemplateIntro(c) || "", new RegExp(sourceDocument));
+    assert.match(certificateTemplateIntro(c) || "", new RegExp(sourceDocument));
+    assert.match(kazakhDecisionIntro(c), /қарсылықты қарап/);
+  }
+});

@@ -9,6 +9,7 @@ import { DocumentContent } from "./DocumentModal";
 import { DEMO_USER } from "../../../config";
 import { OUTCOMES } from "../../../data/constants";
 import { downloadFile } from "../../../utils/download";
+import { requiresMotivatedResponseType } from "../appealTypes";
 
 function appendixDocumentHtml(c: ObjectionCase, document: NonNullable<ObjectionCase["documents"][number]>) {
   const safeTitle = document.name.replace(/[&<>"']/g, (character) =>
@@ -912,7 +913,16 @@ export default function ActionModal({
           <>
             <div className="request-modal-details">
               <div><span>Автор</span><b>{c.assignee === "Не назначен" ? DEMO_USER.fullName : c.assignee}</b></div>
-              <div><span>Печатная форма</span><b>{action === "create-decision-project" ? "Проект решения и приложение" : (c.appealType || "").trim().startsWith("Жалоба") || c.appealType === "Заявление" || c.appealType === "Возражение на аудиторский отчет" || c.appealType === "Возражение на аудиторский отчёт" ? "Мотивированный ответ и приложение" : "Окончательный ответ и приложение"}</b></div>
+              <div>
+                <span>Печатная форма</span>
+                <b>
+                  {action === "create-decision-project"
+                    ? "Проект решения и приложение"
+                    : requiresMotivatedResponseType(c.appealType)
+                      ? "Мотивированный ответ и приложение"
+                      : "Окончательный ответ и приложение"}
+                </b>
+              </div>
             </div>
             {definition.note && <Notice>{definition.note}</Notice>}
             <div className="request-modal-tabs" role="tablist">

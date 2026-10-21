@@ -4,6 +4,10 @@ import {
   auditAuthorityFullName,
   type AuditAuthorityCase,
 } from "../../../utils/auditAuthority";
+import {
+  isPreventiveControlObjectionType,
+  preventiveControlSourceDocumentLabels,
+} from "../appealTypes";
 
 function value(text?: string) {
   return text?.trim() || "—";
@@ -106,6 +110,22 @@ function statementReference(c: ObjectionCase) {
  * В ранних обращениях значение хранилось во множественном числе. Новая форма
  * использует единственное число — оба значения должны получать один шаблон.
  */
+function preventiveControlObjectionReference(c: ObjectionCase) {
+  const source = preventiveControlSourceDocumentLabels(c.appealType);
+  if (!source) return undefined;
+  return (
+    applicantReference(c) +
+    ", на " +
+    source.reference +
+    " от " +
+    formatDate(c.document.date) +
+    " года № " +
+    value(c.document.number) +
+    ", проведенный " +
+    auditAuthorityTemplateName(c)
+  );
+}
+
 function isNoticeObjection(c: Pick<ObjectionCase, "appealType" | "type">) {
   return (
     ["Возражение на уведомление", "Возражение на уведомления"].includes(
@@ -123,6 +143,7 @@ export function auditAuthorityTemplateName(
   const appealType = c.appealType || "";
   const grammaticalCase: AuditAuthorityCase =
     isNoticeObjection(c) ||
+    isPreventiveControlObjectionType(appealType) ||
     ["Возражение на аудиторский отчет", "Жалоба на уведомление", "Жалоба на решение КВГА/ДВГА"].includes(
       appealType,
     )
@@ -140,6 +161,10 @@ function noticeObjectionReference(c: ObjectionCase) {
 
 /** Text shared by the agenda and protocol templates for the specified appeal kinds. */
 export function agendaOrProtocolIntro(c: ObjectionCase) {
+  const preventiveControlReference = preventiveControlObjectionReference(c);
+  if (preventiveControlReference)
+    return "Возражение от " + preventiveControlReference + ".";
+
   if (isNoticeObjection(c))
     return `Возражение от ${noticeObjectionReference(c)}.`;
 
@@ -157,6 +182,14 @@ export function agendaOrProtocolIntro(c: ObjectionCase) {
 
 /** Standard body of the request to КВГА/ДВГА for the specified appeal kinds. */
 export function requestTemplateIntro(c: ObjectionCase) {
+  const preventiveControlReference = preventiveControlObjectionReference(c);
+  if (preventiveControlReference)
+    return (
+      "В связи с поступлением на рассмотрение Апелляционной комиссии Министерства финансов Республики Казахстан возражения от " +
+      preventiveControlReference +
+      ", просим представить мотивированный ответ по каждому доводу возражения и подтверждающие документы."
+    );
+
   if (isNoticeObjection(c))
     return `В связи с поступлением на рассмотрение Апелляционной комиссии Министерства финансов Республики Казахстан возражения от ${noticeObjectionReference(c)}, просим представить мотивированный ответ по каждому доводу возражения и подтверждающие документы.`;
 
@@ -176,6 +209,14 @@ export function requestTemplateIntro(c: ObjectionCase) {
 
 /** First paragraph of the certificate for the specified appeal kinds. */
 export function certificateTemplateIntro(c: ObjectionCase) {
+  const preventiveControlReference = preventiveControlObjectionReference(c);
+  if (preventiveControlReference)
+    return (
+      "В Министерство финансов Республики Казахстан поступило возражение от " +
+      preventiveControlReference +
+      "."
+    );
+
   if (isNoticeObjection(c))
     return `В Министерства финансов Республики Казахстан поступило возражение от ${noticeObjectionReference(c)}.`;
 

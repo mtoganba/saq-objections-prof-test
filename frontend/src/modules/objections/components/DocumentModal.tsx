@@ -31,13 +31,17 @@ import {
   certificateTemplateIntro,
   requestTemplateIntro,
 } from "../services/appealTemplates";
+import {
+  PREVENTIVE_CONTROL_ACT_OBJECTION,
+  isPreventiveControlObjectionType,
+} from "../appealTypes";
 
 function requestDeadlineDate(deadline: string) {
   return formatDate(deadline.slice(0, 10));
 }
 
 function hasSeparateAuditObject(c: ObjectionCase) {
-  return [
+  return isPreventiveControlObjectionType(c.appealType) || [
     "Жалоба на уведомление",
     "Возражение на аудиторский отчет",
     "Жалоба на действие/бездействие",
@@ -63,6 +67,14 @@ export function kazakhDecisionIntro(c: ObjectionCase) {
 
   if (c.appealType === "Возражение на аудиторский отчет")
     return `Қазақстан Республикасы Қаржы министрлігінің апелляциялық комиссиясы ${appealReference} қарсылықты қарап, келесіні хабарлайды.`;
+
+  if (isPreventiveControlObjectionType(c.appealType)) {
+    const disputedDocument =
+      c.appealType === PREVENTIVE_CONTROL_ACT_OBJECTION
+        ? "профилактикалық бақылау нәтижелері туралы актіге"
+        : "профилактикалық бақылау бойынша нұсқамаға";
+    return `Қазақстан Республикасы Қаржы министрлігінің апелляциялық комиссиясы ${appealReference} ${disputedDocument} қатысты қарсылықты қарап, келесіні хабарлайды.`;
+  }
 
   if (c.appealType?.startsWith("Жалоба"))
     return `Қазақстан Республикасы Қаржы министрлігінің (бұдан әрі – Министрлік) апелляциялық комиссиясы ${appealReference} шағымды қарап, келесіні хабарлайды.`;

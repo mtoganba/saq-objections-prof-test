@@ -6,15 +6,9 @@ import { formatDate } from "../../../utils/dateFormat";
 import { applicantIdentifierType } from "../services/appealTemplates";
 import { executionDeadline, reviewDeadline } from "../services/deadlines";
 import { isSubjectRole, subjectRoleForCase } from "../services/saqCabinets";
+import { PREVENTIVE_CONTROL_OBJECTION_TYPES } from "../appealTypes";
 
-const APPEAL_TYPE_OPTIONS = [
-  "Заявление",
-  "Жалоба на действие/бездействие",
-  "Жалоба на решение КВГА/ДВГА",
-  "Возражение на уведомление",
-  "Возражение на аудиторский отчет",
-  "Жалоба на уведомление",
-] as const;
+const APPEAL_TYPE_OPTIONS = PREVENTIVE_CONTROL_OBJECTION_TYPES;
 
 type DeadlineSortColumn = "review" | "execution" | null;
 type DeadlineSortDirection = "asc" | "desc";

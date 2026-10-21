@@ -8,6 +8,7 @@ import type {
   Role,
 } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
+import { requiresMotivatedResponseType } from "../appealTypes";
 import {
   additionalActions,
   nextAction,
@@ -280,13 +281,7 @@ function RequestResponsesPanel({
 }
 
 function isMotivatedResponseCase(c: ObjectionCase) {
-  const appealType = (c.appealType || "").trim();
-  return (
-    appealType.startsWith("Жалоба") ||
-    appealType === "Заявление" ||
-    appealType === "Возражение на аудиторский отчет" ||
-    appealType === "Возражение на аудиторский отчёт"
-  );
+  return requiresMotivatedResponseType(c.appealType);
 }
 
 function FinalResponseApprovalPanel({ c }: { c: ObjectionCase }) {

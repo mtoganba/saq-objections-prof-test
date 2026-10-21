@@ -9,6 +9,12 @@ import type {
 import { dateObject } from "../services/deadlines";
 import { required } from "../services/workflow";
 import { nextCaseNumber } from "../services/caseNumbering";
+import {
+  PREVENTIVE_CONTROL_ACT_OBJECTION,
+  PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+  isPreventiveControlObjectionType,
+  preventiveControlSourceDocumentLabels,
+} from "../appealTypes";
 import { Field } from "./ActionModal";
 
 const AUDIT_ORGAN_OPTIONS = [
@@ -37,7 +43,6 @@ const AUDIT_ORGAN_OPTIONS = [
 
 const CHANNEL_OPTIONS = [
   "E-Otinish",
-  "Веб-портал государственных закупок",
   "ОДО",
   "SAQ",
   "другое",
@@ -59,31 +64,15 @@ function formatFileSize(bytes: number) {
 
 const APPEAL_TYPES = [
   {
-    value: "audit-objection",
-    label: "Возражение на аудиторский отчет",
-    caseType: "audit",
-  },
-  {
-    value: "notice-objection",
-    label: "Возражение на уведомление",
-    caseType: "notice",
-  },
-  {
-    value: "notice-complaint",
-    label: "Жалоба на уведомление",
-    caseType: "notice",
-  },
-  {
-    value: "kvga-dvga-decision-complaint",
-    label: "Жалоба на решение КВГА/ДВГА",
+    value: "preventive-control-act-objection",
+    label: PREVENTIVE_CONTROL_ACT_OBJECTION,
     caseType: "control",
   },
   {
-    value: "action-inaction-complaint",
-    label: "Жалоба на действие/бездействие",
+    value: "preventive-control-prescription-objection",
+    label: PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
     caseType: "control",
   },
-  { value: "statement", label: "Заявление", caseType: "control" },
 ] as const satisfies ReadonlyArray<{
   value: string;
   label: string;
@@ -136,6 +125,12 @@ export default function NewCaseModal({
   const isNoticeComplaint = appealType === "notice-complaint";
   const isNotice = appealType === "notice-objection" || isNoticeComplaint;
   const isAudit = appealType === "audit-objection";
+  const isPreventiveControlObjection = isPreventiveControlObjectionType(
+    selectedAppealType.label,
+  );
+  const preventiveSourceDocument = preventiveControlSourceDocumentLabels(
+    selectedAppealType.label,
+  );
   const isActionComplaint = appealType === "action-inaction-complaint";
   const isDecisionComplaint = appealType === "kvga-dvga-decision-complaint";
   const hasSeparateAuditObject =
@@ -143,38 +138,50 @@ export default function NewCaseModal({
     isAudit ||
     isActionComplaint ||
     isDecisionComplaint ||
+    isPreventiveControlObjection ||
     appealType === "statement";
   const supportsRepresentativeConfirmation =
     isNotice ||
     isAudit ||
     isDecisionComplaint ||
     isActionComplaint ||
+    isPreventiveControlObjection ||
     appealType === "statement";
   const needsAgendaTemplateFields =
-    isNotice || isAudit || isActionComplaint || isDecisionComplaint;
-  const sourceDocumentLabel = isNotice
-    ? "Уведомление об устранении нарушений"
-    : isAudit
-      ? "Аудиторский отчет"
-      : isActionComplaint
-        ? hasProcurement
-          ? "Обращение, по которому обжалуется действие/бездействие"
-          : "Аудиторский отчет"
-        : isDecisionComplaint
-          ? decisionKind === "quality-control"
-            ? "Результат контроля качества"
-            : decisionKind === "preventive-control-act"
-              ? "Акт о результате профилактического контроля"
-              : decisionKind === "administrative-act"
-                ? "Административный акт"
-                : "Предписание"
-          : "Оспариваемый документ";
-  const sourceDocumentNumberLabel = isActionComplaint
-    ? "Номер первичного обращения в ДВГА/КВГА"
-    : `Номер: ${sourceDocumentLabel}`;
-  const sourceDocumentDateLabel = isActionComplaint
-    ? "Дата первичного обращения в ДВГА/КВГА"
-    : `Дата: ${sourceDocumentLabel}`;
+    isNotice ||
+    isAudit ||
+    isActionComplaint ||
+    isDecisionComplaint ||
+    isPreventiveControlObjection;
+  const sourceDocumentLabel =
+    preventiveSourceDocument?.name ||
+    (isNotice
+      ? "Уведомление об устранении нарушений"
+      : isAudit
+        ? "Аудиторский отчет"
+        : isActionComplaint
+          ? hasProcurement
+            ? "Обращение, по которому обжалуется действие/бездействие"
+            : "Аудиторский отчет"
+          : isDecisionComplaint
+            ? decisionKind === "quality-control"
+              ? "Результат контроля качества"
+              : decisionKind === "preventive-control-act"
+                ? "Акт о результате профилактического контроля"
+                : decisionKind === "administrative-act"
+                  ? "Административный акт"
+                  : "Предписание"
+            : "Оспариваемый документ");
+  const sourceDocumentNumberLabel =
+    preventiveSourceDocument?.number ||
+    (isActionComplaint
+      ? "Номер первичного обращения в ДВГА/КВГА"
+      : `Номер: ${sourceDocumentLabel}`);
+  const sourceDocumentDateLabel =
+    preventiveSourceDocument?.date ||
+    (isActionComplaint
+      ? "Дата первичного обращения в ДВГА/КВГА"
+      : `Дата: ${sourceDocumentLabel}`);
   const applicantNameLabel = hasSeparateAuditObject
     ? "Наименование объекта заявителя"
     : "Наименование объекта аудита/заявителя";
@@ -942,7 +949,7 @@ export default function NewCaseModal({
             label:
               "Портал/цифровая система, по которой поступило обращение",
             type: "select",
-            value: "Веб-портал государственных закупок",
+            value: "E-Otinish",
             options: CHANNEL_OPTIONS.map((option) => [option, option]),
             required: true,
           }}

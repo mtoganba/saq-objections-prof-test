@@ -30,12 +30,14 @@ import {
 import ConsiderationProcess from "../components/ConsiderationProcess";
 import { wordDocumentHtml } from "../components/DocumentModal";
 import { downloadFile } from "../../../utils/download";
+import {
+  isPreventiveControlObjectionType,
+  preventiveControlSourceDocumentLabels,
+  requiresMotivatedResponseType,
+} from "../appealTypes";
 
 function responseDocumentLabel(c: ObjectionCase) {
-  return (c.appealType || "").trim().startsWith("Жалоба") ||
-    c.appealType === "Заявление" ||
-    c.appealType === "Возражение на аудиторский отчет" ||
-    c.appealType === "Возражение на аудиторский отчёт"
+  return requiresMotivatedResponseType(c.appealType)
     ? "Мотивированный ответ"
     : "Окончательный ответ";
 }
@@ -650,14 +652,14 @@ export default function CaseWorkspace({
       document.kind === "attachment" &&
       document.text === "Доверенность представителя",
   );
-  const hasSeparateAuditObject = [
+  const hasSeparateAuditObject = isPreventiveControlObjectionType(c.appealType) || [
     "Жалоба на уведомление",
     "Возражение на аудиторский отчет",
     "Жалоба на действие/бездействие",
     "Жалоба на решение КВГА/ДВГА",
     "Заявление",
   ].includes(c.appealType || "");
-  const supportsRepresentativeConfirmation = [
+  const supportsRepresentativeConfirmation = isPreventiveControlObjectionType(c.appealType) || [
     "Жалоба на уведомление",
     "Возражение на уведомление",
     "Возражение на аудиторский отчет",
@@ -683,6 +685,9 @@ export default function CaseWorkspace({
     c.status === "commission_members" ||
     c.status === "commission_voting";
   const isClosed = CLOSED.includes(c.status);
+  const preventiveSourceDocument = preventiveControlSourceDocumentLabels(
+    c.appealType,
+  );
   const currentExecutionDeadline = executionDeadline(c, role);
   const authorityRequests = c.requests.filter((request) =>
     isRequestForAuthority(request, role),
@@ -877,13 +882,19 @@ export default function CaseWorkspace({
                   />
                   {!isActionComplaint && c.document.number && (
                     <Fact
-                      label={`Номер: ${c.document.name}`}
+                      label={
+                        preventiveSourceDocument?.number ||
+                        "Номер: " + c.document.name
+                      }
                       value={c.document.number}
                     />
                   )}
                   {!isActionComplaint && c.document.number && (
                     <Fact
-                      label={`Дата: ${c.document.name}`}
+                      label={
+                        preventiveSourceDocument?.date ||
+                        "Дата: " + c.document.name
+                      }
                       value={formatDate(c.document.date)}
                     />
                   )}

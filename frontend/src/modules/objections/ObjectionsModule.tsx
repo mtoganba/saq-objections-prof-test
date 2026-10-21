@@ -44,6 +44,7 @@ import {
 } from "./useObjectionsModel";
 import { formatDateTime } from "../../utils/dateFormat";
 import { isSubjectRole, subjectRoleForCase } from "./services/saqCabinets";
+import { usesStatementReviewScenario } from "./appealTypes";
 
 type DialogState =
   | { type: "action"; action: Action; requestId?: string }
@@ -1236,7 +1237,7 @@ export default function ObjectionsModule() {
     const updated = next.cases.find((item) => item.id === c.id)!;
     if (
       action === "hearing-after-decision-project" &&
-      (updated.appealType || "").trim() === "Заявление"
+      usesStatementReviewScenario(updated.appealType)
     ) {
       const hearingOutcome = String(form.get("hearingOutcome") || "");
       if (

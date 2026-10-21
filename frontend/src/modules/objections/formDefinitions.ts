@@ -6,6 +6,10 @@ import { addWorkdays, filingDeadline } from "./services/deadlines";
 import { disputed } from "./services/decisions";
 import { controlDecisions } from "./services/workflow";
 import { hasSubjectSaqCabinet, subjectSaqCabinetLabel } from "./services/saqCabinets";
+import {
+  requiresMotivatedResponseType,
+  usesStatementReviewScenario,
+} from "./appealTypes";
 
 export interface FormField {
   name: string;
@@ -141,13 +145,7 @@ export function requiresConclusion(c: ObjectionCase) {
 }
 
 function requiresMotivatedResponse(c: ObjectionCase) {
-  const appealType = (c.appealType || "").trim();
-  return (
-    appealType.startsWith("Жалоба") ||
-    appealType === "Заявление" ||
-    appealType === "Возражение на аудиторский отчет" ||
-    appealType === "Возражение на аудиторский отчёт"
-  );
+  return requiresMotivatedResponseType(c.appealType);
 }
 
 function defaultDecisionProjectChannel(c: ObjectionCase) {
@@ -745,7 +743,7 @@ export function actionForm(
       break;
     case "hearing-after-decision-project":
       title = "Заслушивание проведено";
-      if ((c.appealType || "").trim() === "Заявление") {
+      if (usesStatementReviewScenario(c.appealType)) {
         fields.push(
           select(
             "hearingOutcome",

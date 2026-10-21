@@ -1,5 +1,9 @@
 import { CLOSED, OUTCOMES, ROLES } from "../../../data/constants";
 import { DEMO_USER } from "../../../config";
+import {
+  requiresMotivatedResponseType,
+  usesStatementReviewScenario,
+} from "../appealTypes";
 import { formatDate } from "../../../utils/dateFormat";
 import type {
   Action,
@@ -143,10 +147,10 @@ function isActiveRequest(request: CaseRequest) {
   return !request.cancelled;
 }
 
-/** Жалобы и заявления не получают отдельное уведомление о направлении запроса. */
+/** Жалобы, заявления и возражения по профилактическому контролю используют общий маршрут запросов. */
 function isComplaintOrStatement(c: ObjectionCase) {
   const appealType = (c.appealType || "").trim();
-  return appealType.startsWith("Жалоба") || appealType === "Заявление";
+  return appealType.startsWith("Жалоба") || usesStatementReviewScenario(appealType);
 }
 
 export const REQUEST_LIFECYCLE_LABELS: Record<RequestLifecycleStatus, string> =
@@ -277,32 +281,25 @@ function directedToDvgaOrKvga(c: ObjectionCase) {
 }
 
 function requiresEotinishDecisionProject(c: ObjectionCase) {
-  // Для жалоб и заявлений действует единый административный маршрут независимо от
-  // источника: портал, цифровая система или E-Otinish. После протокола
-  // обязательно формируются проект решения и проводится заслушивание.
+  // Для жалоб, заявлений и двух возражений на профилактический контроль
+  // действует единый маршрут проекта решения и заслушивания.
   // Проверяем сам вид обращения, а не его технический тип: это также включает
   // сохранённые карточки со старым наименованием вида жалобы.
   const appealType = (c.appealType || "").trim();
-  return appealType.startsWith("Жалоба") || appealType === "Заявление";
+  return appealType.startsWith("Жалоба") || usesStatementReviewScenario(appealType);
 }
 
 /**
- * Мотивированный ответ направляется по единому маршруту: для жалоб,
- * заявлений и возражений на аудиторский отчёт. При этом проект решения и
- * заслушивание остаются отдельным маршрутом только для жалоб и заявлений.
+ * Мотивированный ответ направляется для жалоб, заявлений и возражений на
+ * аудиторский отчёт. Возражения по профилактическому контролю также проходят
+ * проект решения и заслушивание по сценарию заявления.
  */
 function requiresMotivatedResponse(c: ObjectionCase) {
-  const appealType = (c.appealType || "").trim();
-  return (
-    appealType.startsWith("Жалоба") ||
-    appealType === "Заявление" ||
-    appealType === "Возражение на аудиторский отчет" ||
-    appealType === "Возражение на аудиторский отчёт"
-  );
+  return requiresMotivatedResponseType(c.appealType);
 }
 
-function isStatement(c: ObjectionCase) {
-  return (c.appealType || "").trim() === "Заявление";
+function usesStatementScenario(c: ObjectionCase) {
+  return usesStatementReviewScenario(c.appealType);
 }
 
 const REQUEST_STAGE_STATUSES: ObjectionCase["status"][] = [
@@ -629,14 +626,14 @@ export function additionalActions(c: ObjectionCase): ActionOption[] {
   const options: ActionOption[] = [
     { action: "upload", label: "Добавить материал", role: subjectRoleForCase(c) },
   ];
-  if (isStatement(c) && c.status === "materials") {
+  if (usesStatementScenario(c) && c.status === "materials") {
     options.push({
       action: "start-analysis-additional-request",
       label: "Направить дополнительный запрос",
       role: "work",
     });
   }
-  if (isStatement(c) && COMMISSION_STAGE_STATUSES.includes(c.status)) {
+  if (usesStatementScenario(c) && COMMISSION_STAGE_STATUSES.includes(c.status)) {
     options.push({
       action: "start-commission-additional-request",
       label: "Направить дополнительный запрос",
@@ -886,9 +883,9 @@ export function applyAction(
   switch (action) {
     case "start-analysis-additional-request":
     case "start-commission-additional-request": {
-      if (!isStatement(c))
+      if (!usesStatementScenario(c))
         throw new Error(
-          "Дополнительный маршрут в этой версии доступен только для заявления",
+          "Дополнительный маршрут доступен для заявления и возражений по профилактическому контролю",
         );
       const reason = text(
         "reason",
@@ -1959,7 +1956,7 @@ export function applyAction(
       // второй проект решения не формируется. После подписания повторного
       // протокола обращение сразу переходит к мотивированному ответу.
       const repeatHearingAfterDecisionProject =
-        isStatement(c) &&
+        usesStatementScenario(c) &&
         Boolean(c.decisionProject) &&
         c.repeatHearingStatus === "scheduled";
       c.status =
@@ -2013,13 +2010,13 @@ export function applyAction(
           form.get(`finalResponseMajority_${point.id}`) === "on";
       });
       c.status = "decision_project_approval";
-      doc(
+      const decisionProjectName =
         c.appealType === "Заявление"
           ? "Проект решения по заявлению"
-          : "Проект решения по жалобе",
-        "decision-project",
-        c.result?.reason || "",
-      );
+          : usesStatementScenario(c)
+            ? "Проект решения по возражению"
+            : "Проект решения по жалобе";
+      doc(decisionProjectName, "decision-project", c.result?.reason || "");
       break;
     }
     case "approve-decision-project":
@@ -2236,7 +2233,7 @@ export function applyAction(
         throw new Error("Вложите протокол заслушивания");
       if (c.hearing) c.hearing.held = date;
 
-      if (isStatement(c)) {
+      if (usesStatementScenario(c)) {
         const hearingOutcome = String(form.get("hearingOutcome") || "").trim();
         if (
           ![

@@ -1,4 +1,5 @@
 import type { ObjectionCase, Role } from "../../../types";
+import { usesStatementReviewScenario } from "../appealTypes";
 export const holidays = ["2026-08-31", "2026-10-26", "2026-12-16"];
 export function dateObject(s: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s || ""))
@@ -80,8 +81,8 @@ export function reviewDuration(c: ObjectionCase) {
     [
       "Возражение на уведомление",
       "Возражение на уведомления",
-      "Заявление",
     ].includes(c.appealType || "") ||
+    usesStatementReviewScenario(c.appealType) ||
     c.type === "notice"
   )
     return 15;
