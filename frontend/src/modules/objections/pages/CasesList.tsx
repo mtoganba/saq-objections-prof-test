@@ -134,7 +134,8 @@ export default function CasesList({
           (c) =>
             hasFinalResponseForRecipient(c, role) ||
             (subjectRoleForCase(c) === role &&
-              (c.requests.some(isRequestForSubject) ||
+              (c.submittedViaSaqApplicant ||
+                c.requests.some(isRequestForSubject) ||
                 c.decisionProjectRouting?.channel === "saq")),
         )
     : cases;
@@ -270,7 +271,18 @@ export default function CasesList({
         ],
       ]
     : subjectRole
-      ? [[recipientRequests.length, "Ожидают ответа", "требуется предоставить ответ", "blue"]]
+      ? [
+          [
+            role === "subject2"
+              ? registryCases.filter((c) => c.submittedViaSaqApplicant).length
+              : recipientRequests.length,
+            role === "subject2" ? "Мои возражения" : "Ожидают ответа",
+            role === "subject2"
+              ? "подано через кабинет SAQ"
+              : "требуется предоставить ответ",
+            "blue",
+          ],
+        ]
     : [
         [cases.length, "Всего обращений", "зарегистрировано в реестре", "blue"],
         [
@@ -299,17 +311,23 @@ export default function CasesList({
         title="Реестр обращений"
         subtitle={
           recipientRole
-            ? "Запросы и окончательные ответы, поступившие в кабинет"
+            ? role === "subject2"
+              ? "Ваши возражения, запросы и ответы в кабинете SAQ"
+              : "Запросы и окончательные ответы, поступившие в кабинет"
             : "Возражения объектов аудита и жалобы субъектов контроля"
         }
         action={
           <>
             <Button onClick={() => onExport(visible)}>Экспорт CSV</Button>
-            {!recipientRole && (
+            {role === "subject2" ? (
+              <Button primary onClick={onCreate}>
+                Подать возражение
+              </Button>
+            ) : !recipientRole ? (
               <Button primary onClick={onCreate}>
                 + Новое возражение/обращение
               </Button>
-            )}
+            ) : null}
           </>
         }
       />
