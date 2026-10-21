@@ -131,10 +131,8 @@ const RECOMMENDATION_RECIPIENT_OPTIONS = [
 ] as const satisfies FormField["options"];
 
 const WORK_EXECUTOR_OPTIONS = [
-  ["", "Выберите секретаря"],
+  ["", "Выберите исполнителя"],
   ["Секретарь комиссии", "Секретарь комиссии"],
-  ["Главный эксперт ДАВГА", "Главный эксперт ДАВГА"],
-  ["Эксперт ДАВГА", "Эксперт ДАВГА"],
 ] as const satisfies FormField["options"];
 
 export function requiresConclusion(c: ObjectionCase) {
@@ -213,9 +211,7 @@ export function actionForm(
       fields.push(
         select(
           "assignee",
-          isPreventiveControlObjectionType(c.appealType)
-            ? "Секретарь комиссии"
-            : "Исполнитель рабочего органа",
+          "Выбрать исполнителя",
           WORK_EXECUTOR_OPTIONS,
         ),
       );
@@ -310,6 +306,9 @@ export function actionForm(
           readOnly: true,
         },
       );
+      if (isPreventiveControlObjectionType(c.appealType))
+        note =
+          "Письмо-запрос не формируется. Система формирует только приложение к запросу в печатной форме.";
       break;
     case "request-saq":
       title = "Сформировать запрос в кабинет SAQ";
@@ -349,7 +348,7 @@ export function actionForm(
     case "send-request-approval":
       title = "Отправить запрос на согласование";
       note =
-        "Запрос и приложение будут направлены заместителю директора ДАВГА для согласования.";
+        "Запрос и приложение будут направлены в кабинет «Согласующий» для согласования.";
       break;
     case "approve-request":
       title = "Согласование запроса";
