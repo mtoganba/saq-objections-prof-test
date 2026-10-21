@@ -214,6 +214,21 @@ test("the manager can shorten but cannot extend the secretary's internal deadlin
   const state = initialState();
   const c = state.cases[0];
   c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  const assignDefinition = actionForm(
+    "assign-work-executor",
+    c,
+    "2026-09-08",
+    {},
+    "director",
+  );
+  const assigneeField = assignDefinition.fields.find(
+    (field) => field.name === "assignee",
+  );
+  assert.equal(assigneeField?.label, "Выбрать исполнителя");
+  assert.deepEqual(assigneeField?.options, [
+    ["", "Выберите исполнителя"],
+    ["Секретарь комиссии", "Секретарь комиссии"],
+  ]);
   const assignForm = new FormData();
   assignForm.set("assignee", "Секретарь комиссии");
   assignForm.set("secretaryDeadline", "2026-09-21");
@@ -241,6 +256,45 @@ test("the manager can shorten but cannot extend the secretary's internal deadlin
       ),
     /можно только сократить/,
   );
+});
+
+test("preventive-control request creates a printed appendix without a letter", () => {
+  for (const appealType of [
+    PREVENTIVE_CONTROL_ACT_OBJECTION,
+    PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
+  ]) {
+    const state = initialState();
+    const c = state.cases[0];
+    c.appealType = appealType;
+    c.status = "accepted";
+    const form = new FormData();
+    form.set("recipient", "ДВГА по г. Астана");
+
+    const next = applyAction(state, c.id, "request", "work", form);
+    assert.equal(
+      next.cases[0].documents.some((document) => document.kind === "request"),
+      false,
+    );
+    assert.ok(
+      next.cases[0].documents.some(
+        (document) => document.kind === "request-appendix",
+      ),
+    );
+
+    const printForm = renderToStaticMarkup(
+      createElement(ActionModal, {
+        action: "request",
+        c,
+        date: "2026-09-08",
+        role: "work",
+        onSubmit() {},
+        onClose() {},
+      }),
+    );
+    assert.match(printForm, /Печатная форма приложения/);
+    assert.match(printForm, /Нарушение, по которым поступило возражение/);
+    assert.doesNotMatch(printForm, /request-template-body/);
+  }
 });
 
 test("preventive-control meeting records commission votes without a meeting certificate", () => {
