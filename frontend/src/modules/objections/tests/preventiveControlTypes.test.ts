@@ -117,7 +117,12 @@ test("preventive-control objections use the statement review scenario", () => {
       {},
     );
     assert.ok(
-      hearingForm.fields.some((field) => field.name === "hearingOutcome"),
+      hearingForm.fields.some(
+        (field) => field.name === "hearingHasNewArguments",
+      ),
+    );
+    assert.ok(
+      hearingForm.fields.some((field) => field.name === "hearingNextAction"),
     );
 
     c.status = "decided";

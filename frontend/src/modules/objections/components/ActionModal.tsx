@@ -9,7 +9,10 @@ import { DocumentContent } from "./DocumentModal";
 import { DEMO_USER } from "../../../config";
 import { OUTCOMES } from "../../../data/constants";
 import { downloadFile } from "../../../utils/download";
-import { requiresMotivatedResponseType } from "../appealTypes";
+import {
+  requiresMotivatedResponseType,
+  usesStatementReviewScenario,
+} from "../appealTypes";
 
 function appendixDocumentHtml(c: ObjectionCase, document: NonNullable<ObjectionCase["documents"][number]>) {
   const safeTitle = document.name.replace(/[&<>"']/g, (character) =>
@@ -475,11 +478,23 @@ export default function ActionModal({
   const formRef = useRef<HTMLFormElement>(null);
   const [requestAttachments, setRequestAttachments] = useState<File[]>([]);
   const [conclusionFiles, setConclusionFiles] = useState<File[]>([]);
+  const hearingProtocolInputRef = useRef<HTMLInputElement>(null);
+  const [hearingProtocolFileNames, setHearingProtocolFileNames] = useState<string[]>([]);
+  const [hearingFileDropActive, setHearingFileDropActive] = useState(false);
   const [recommendationChannel, setRecommendationChannel] = useState<
     "saq" | "external"
   >("saq");
   const [requestTab, setRequestTab] = useState<"form" | "print">("form");
   const definition = actionForm(action, c, date, values, role);
+  const hearingUsesRouteSelection =
+    action === "hearing-after-decision-project" &&
+    usesStatementReviewScenario(c.appealType);
+  const hearingHasNewArguments = values.hearingHasNewArguments || "yes";
+  const hearingNextAction =
+    hearingHasNewArguments === "no"
+      ? "proceed"
+      : values.hearingNextAction || "return-request";
+  const hearingArgumentPoints = disputed(c);
   const activeCommissionVoter = commissionMemberId
     ? c.members.find((member) => member.id === commissionMemberId)
     : undefined;
@@ -625,7 +640,12 @@ export default function ActionModal({
     <Modal
       title={definition.title}
       onClose={onClose}
-      className={action === "commission-vote" ? "commission-voting-dialog" : ""}
+      className={[
+        action === "commission-vote" ? "commission-voting-dialog" : "",
+        hearingUsesRouteSelection ? "hearing-completed-dialog" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
       wide={
         action === "vote" ||
         action === "commission-vote" ||
@@ -1561,29 +1581,240 @@ export default function ActionModal({
             </label>
           </>
         ) : action === "hearing-after-decision-project" ? (
-          <>
-            {definition.note && <Notice>{definition.note}</Notice>}
-            {definition.fields.length > 0 && (
-              <div className="form-grid">
-                {definition.fields.map((field) => (
-                  <Field key={field.name} field={field} />
-                ))}
+          hearingUsesRouteSelection ? (
+            <div className="hearing-completed-form">
+              <div className="hearing-info-banner">
+                <span className="hearing-info-icon" aria-hidden="true">
+                  i
+                </span>
+                <p>
+                  Вложите протокол проведённого заслушивания. {definition.note}
+                </p>
               </div>
-            )}
-            <label className="field request-attachments-field">
-              <span>
-                Протокол заслушивания <span className="required">*</span>
-              </span>
-              <input
-                type="file"
-                name="hearingProtocolFiles"
-                accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
-                multiple
-                required
-              />
-              <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
-            </label>
-          </>
+
+              <section className="hearing-step">
+                <div className="hearing-step-heading">
+                  <span>1</span>
+                  <h4>Основные сведения</h4>
+                </div>
+                <div className="hearing-basics-grid">
+                  {definition.fields
+                    .filter((field) => field.name === "date")
+                    .map((field) => (
+                      <Field key={field.name} field={field} />
+                    ))}
+                  {definition.fields
+                    .filter((field) => field.name === "hearingHasNewArguments")
+                    .map((field) => (
+                      <Field key={field.name} field={field} />
+                    ))}
+                </div>
+              </section>
+
+              <section className="hearing-step">
+                <div className="hearing-step-heading">
+                  <span>2</span>
+                  <h4>
+                    Выберите дальнейшее действие <span className="required">*</span>
+                  </h4>
+                </div>
+                <div
+                  className="hearing-action-options"
+                  role="radiogroup"
+                  aria-label="Дальнейшее действие после заслушивания"
+                >
+                  {[
+                    ["return-request", "Вернуть на этап «Запрос»"],
+                    ["return-analysis", "Вернуть на этап «Анализ»"],
+                    ["proceed", "Перейти на следующий этап"],
+                  ].map(([value, label]) => {
+                    const disabled =
+                      hearingHasNewArguments === "no" && value !== "proceed";
+                    return (
+                      <label
+                        className={[
+                          "hearing-action-option",
+                          hearingNextAction === value ? "selected" : "",
+                          disabled ? "disabled" : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" ")}
+                        key={value}
+                      >
+                        <input
+                          type="radio"
+                          name="hearingNextAction"
+                          value={value}
+                          checked={hearingNextAction === value}
+                          disabled={disabled}
+                          required
+                        />
+                        <span>{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="hearing-step">
+                <div className="hearing-step-heading">
+                  <span>3</span>
+                  <h4>Выберите пункты с новыми доводами</h4>
+                </div>
+                {hearingHasNewArguments === "yes" ? (
+                  <>
+                    <p className="hearing-points-hint">
+                      Отметьте только оспариваемые пункты, к которым относятся
+                      новые доводы, и заполните открывшиеся поля.
+                    </p>
+                    {hearingArgumentPoints.length ? (
+                      <div className="hearing-points-list">
+                        {hearingArgumentPoints.map((point) => {
+                          const pointFieldName = `hearingArgumentPoint_${point.id}`;
+                          const isSelected = values[pointFieldName] === "on";
+                          return (
+                            <div
+                              className={`hearing-point-card ${isSelected ? "selected" : ""}`}
+                              key={point.id}
+                            >
+                              <label className="hearing-point-choice">
+                                <input
+                                  type="checkbox"
+                                  name={pointFieldName}
+                                  value="on"
+                                  checked={isSelected}
+                                />
+                                <span className="hearing-point-number">
+                                  {point.number}
+                                </span>
+                                <span>
+                                  Пункт № {point.number} — {point.title}
+                                </span>
+                              </label>
+                              {isSelected && (
+                                <div className="hearing-point-additional">
+                                  <label className="field">
+                                    <span>
+                                      Дополнительные доводы объекта гос. аудита
+                                      (заявителя) по пункту {point.number}
+                                      <span className="required"> *</span>
+                                    </span>
+                                    <textarea
+                                      name={`additionalArgument_${point.id}`}
+                                      defaultValue={
+                                        values[`additionalArgument_${point.id}`] ||
+                                        ""
+                                      }
+                                      rows={3}
+                                      required
+                                    />
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="hearing-points-empty">
+                        В обращении нет оспариваемых пунктов для привязки новых
+                        доводов.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="hearing-points-empty">
+                    Новых доводов нет. Выбор пунктов не требуется.
+                  </p>
+                )}
+              </section>
+
+              <section className="hearing-step">
+                <div className="hearing-step-heading">
+                  <span>4</span>
+                  <h4>
+                    Протокол заслушивания <span className="required">*</span>
+                  </h4>
+                </div>
+                <label
+                  className={`hearing-protocol-dropzone ${hearingFileDropActive ? "drag-active" : ""}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setHearingFileDropActive(true);
+                  }}
+                  onDragLeave={() => setHearingFileDropActive(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setHearingFileDropActive(false);
+                    const input = hearingProtocolInputRef.current;
+                    if (!input || !event.dataTransfer.files.length) return;
+                    const transfer = new DataTransfer();
+                    Array.from(event.dataTransfer.files).forEach((file) =>
+                      transfer.items.add(file),
+                    );
+                    input.files = transfer.files;
+                    setHearingProtocolFileNames(
+                      Array.from(transfer.files).map((file) => file.name),
+                    );
+                  }}
+                >
+                  <span className="hearing-file-icon" aria-hidden="true">
+                    ▤
+                  </span>
+                  <span className="hearing-protocol-copy">
+                    <span>
+                      <b>Выбрать файл(ы)</b> или перетащите их сюда
+                    </span>
+                    <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
+                    {hearingProtocolFileNames.length > 0 && (
+                      <span className="hearing-upload-file-list">
+                        {hearingProtocolFileNames.join(", ")}
+                      </span>
+                    )}
+                  </span>
+                  <input
+                    ref={hearingProtocolInputRef}
+                    type="file"
+                    name="hearingProtocolFiles"
+                    accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
+                    multiple
+                    required
+                    onChange={(event) =>
+                      setHearingProtocolFileNames(
+                        Array.from(event.currentTarget.files || []).map(
+                          (file) => file.name,
+                        ),
+                      )
+                    }
+                  />
+                </label>
+              </section>
+            </div>
+          ) : (
+            <>
+              {definition.note && <Notice>{definition.note}</Notice>}
+              {definition.fields.length > 0 && (
+                <div className="form-grid">
+                  {definition.fields.map((field) => (
+                    <Field key={field.name} field={field} />
+                  ))}
+                </div>
+              )}
+              <label className="field request-attachments-field">
+                <span>
+                  Протокол заслушивания <span className="required">*</span>
+                </span>
+                <input
+                  type="file"
+                  name="hearingProtocolFiles"
+                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx,.txt"
+                  multiple
+                  required
+                />
+                <small>Можно вложить несколько файлов до 2 МБ каждый.</small>
+              </label>
+            </>
+          )
         ) : [
           "record-decision-project-delivery",
           "submit-decision-project-comment",

@@ -1964,3 +1964,252 @@
     grid-column: auto;
   }
 }
+
+.saq-dialog.wide.hearing-completed-dialog {
+  width: min(860px, calc(100vw - 32px));
+}
+.hearing-completed-form {
+  display: grid;
+  gap: 12px;
+}
+.hearing-info-banner {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #d6e8fa;
+  border-radius: 8px;
+  color: #4c6780;
+  background: #f0f7ff;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.hearing-info-banner p {
+  margin: 0;
+}
+.hearing-info-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #1782dc;
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  font-style: normal;
+}
+.hearing-step {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #e1e8ee;
+  border-radius: 9px;
+  background: #fff;
+}
+.hearing-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+}
+.hearing-step-heading > span:first-child {
+  display: grid;
+  place-items: center;
+  flex: 0 0 23px;
+  width: 23px;
+  height: 23px;
+  border-radius: 50%;
+  color: #1476cb;
+  background: #e8f3ff;
+  font-size: 13px;
+  font-weight: 700;
+}
+.hearing-step-heading h4 {
+  margin: 0;
+  color: #243744;
+  font-size: 14px;
+  font-weight: 700;
+}
+.hearing-basics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.hearing-basics-grid .field {
+  margin: 0;
+}
+.hearing-action-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+.hearing-action-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 54px;
+  padding: 9px 10px;
+  border: 1px solid #dce4ea;
+  border-radius: 7px;
+  color: #31434f;
+  background: white;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.35;
+  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
+}
+.hearing-action-option input {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #087ac8;
+}
+.hearing-action-option.selected {
+  border-color: #1683dc;
+  background: #f3f9ff;
+  box-shadow: 0 0 0 1px #1683dc inset;
+}
+.hearing-action-option.disabled {
+  color: #87939c;
+  background: #f7f8fa;
+  cursor: not-allowed;
+}
+.hearing-points-hint {
+  margin: 0 0 9px 32px;
+  color: #6c7f8c;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.hearing-points-list {
+  display: grid;
+  gap: 7px;
+}
+.hearing-point-card {
+  overflow: hidden;
+  border: 1px solid #e0e7ec;
+  border-radius: 8px;
+  background: #fff;
+}
+.hearing-point-card.selected {
+  border-color: #b8daf7;
+  background: #f3f9ff;
+}
+.hearing-point-choice {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 7px 10px;
+  color: #334650;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.hearing-point-choice input {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #087ac8;
+}
+.hearing-point-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  color: #28618e;
+  background: #e9f3fc;
+  font-weight: 700;
+}
+.hearing-point-additional {
+  padding: 0 10px 10px 36px;
+}
+.hearing-point-additional .field {
+  margin: 0;
+}
+.hearing-point-additional textarea {
+  min-height: 58px;
+  resize: vertical;
+}
+.hearing-points-empty {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 7px;
+  color: #607582;
+  background: #f7f9fb;
+  font-size: 12px;
+}
+.hearing-protocol-dropzone {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px dashed #cadbe8;
+  border-radius: 8px;
+  color: #516a7d;
+  background: #fcfdff;
+  cursor: pointer;
+  font-size: 12px;
+}
+.hearing-protocol-dropzone.drag-active,
+.hearing-protocol-dropzone:focus-within {
+  border-color: #1383dc;
+  background: #f3f9ff;
+  box-shadow: 0 0 0 2px #1383dc22;
+}
+.hearing-file-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #087ac8;
+  background: #eaf4fd;
+  font-size: 22px;
+}
+.hearing-protocol-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.hearing-protocol-copy b {
+  color: #087ac8;
+  font-weight: 600;
+}
+.hearing-protocol-copy small {
+  color: #84939d;
+  font-size: 11px;
+}
+.hearing-protocol-dropzone input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.hearing-upload-file-list {
+  overflow-wrap: anywhere;
+  color: #2b6c46;
+  font-size: 11px;
+}
+@media (max-width: 700px) {
+  .hearing-basics-grid,
+  .hearing-action-options {
+    grid-template-columns: 1fr;
+  }
+  .hearing-action-option {
+    min-height: 44px;
+  }
+}

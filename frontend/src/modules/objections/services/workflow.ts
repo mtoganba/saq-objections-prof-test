@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 33103)
+Total output lines: 3058
+
 import { CLOSED, OUTCOMES, ROLES } from "../../../data/constants";
 import { COMMISSION_ATTENDANCE_MEMBERS } from "../../../data/objections";
 import { DEMO_USER } from "../../../config";
@@ -1454,276 +1457,7 @@ export function applyAction(
       if (!c.members.length)
         throw new Error(
           "В последнем опросе о присутствии нет участников заседания",
-        );
-      const chairId = presidingChairId(c.members);
-      if (!chairId)
-        throw new Error(
-          "Для заполнения справки должен присутствовать Вице-министр или Директор ДАВГА",
-        );
-
-      c.votes ||= {};
-      for (const point of disputed(c)) {
-        for (const member of c.members) {
-          const manualResult = normalizeVoteChoice(
-            String(
-              form.get(`meetingCertificateResult_${point.id}_${member.id}`) ||
-                form.get(`meetingCertificateResult_${member.id}`) ||
-                "",
-            ),
-          );
-          const comment = String(
-            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ||
-              form.get(`meetingCertificateComment_${member.id}`) ||
-              "",
-          ).trim();
-          if (!manualResult) continue;
-          const result = c.votes[point.id] || {
-            yes: 0,
-            no: 0,
-            approved: false,
-            chair: chairId,
-            present: c.members.length,
-            eligible: c.members.length,
-            votes: {},
-            voteReasons: {},
-          };
-          result.votes ||= {};
-          result.voteReasons ||= {};
-          result.votes[member.id] = manualResult;
-          result.voteReasons[member.id] = comment;
-          const recordedVotes = c.members.map((item) =>
-            normalizeVoteChoice(result.votes![item.id]),
-          );
-          result.yes = recordedVotes.filter((item) => item === "accept").length;
-          result.no = recordedVotes.filter((item) => item === "reject").length;
-          result.present = c.members.length;
-          result.eligible = c.members.length;
-          const allVoted = recordedVotes.every(Boolean);
-          const outcome = allVoted
-            ? pointOutcomeFromVotes(result.votes, chairId)
-            : "";
-          result.approved = outcome === "accept";
-          c.votes[point.id] = result;
-          if (allVoted && outcome) {
-            point.proposal = outcome;
-            point.final = outcome;
-          }
-        }
-      }
-
-      const savedPositions = new Map(
-        c.certificate.memberPositions.map((position) => [
-          `${position.pointId || "legacy"}_${position.id}`,
-          position,
-        ]),
-      );
-      c.certificate.memberPositions = disputed(c).flatMap((point) =>
-        c.members.map((member) => ({
-          id: member.id,
-          name: member.name,
-          pointId: point.id,
-          pointNumber: point.number,
-          result: normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]),
-          comment: String(
-            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ||
-              form.get(`meetingCertificateComment_${member.id}`) ||
-              savedPositions.get(`${point.id}_${member.id}`)?.comment ||
-              savedPositions.get(`legacy_${member.id}`)?.comment ||
-              "",
-          ).trim(),
-        })),
-      );
-
-      const allVotesRecorded = disputed(c).every((point) =>
-        c.members.every((member) =>
-          Boolean(normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id])),
-        ),
-      );
-      if (allVotesRecorded) c.status = "meeting_certificate_approved";
-      title = "Справка заполнена результатами голосования";
-      note =
-        "В справке зафиксированы голоса и комментарии участников заседания. Результаты, внесённые вручную, учитываются наравне с электронными голосами.";
-      doc("Справка: результаты голосования членов АК", "certificate", note);
-      break;
-    }
-    case "approve-meeting-certificate": {
-      if (!c.certificate?.memberPositions.length)
-        throw new Error(
-          "Сначала заполните и сохраните справку результатами голосования",
-        );
-      c.status = "meeting_certificate_signed";
-      title = "Справка согласована";
-      note =
-        "Справка по результатам голосования согласована и ожидает подписи исполнителя рабочего органа.";
-      break;
-    }
-    case "sign-meeting-certificate": {
-      if (!c.certificate?.memberPositions.length)
-        throw new Error("Справка результатами голосования не заполнена");
-      c.status = "meeting_certificate_approved";
-      title = "Справка подписана";
-      note =
-        "Справка по результатам голосования подписана. Можно зафиксировать проведение заседания.";
-      break;
-    }
-    case "fill-request-response": {
-      const request = pendingDvgaOrKvgaRequest(c, role);
-      if (!request)
-        throw new Error("Это действие доступно только для запроса в ДВГА/КВГА");
-      request.authorityResponses ||= {};
-      for (const point of disputed(c)) {
-        const finding = text(
-          `authorityFinding_${point.id}`,
-          `Нарушение по пункту ${point.number}`,
-        );
-        const response = text(
-          `authorityResponse_${point.id}`,
-          `Мотивированный ответ по пункту ${point.number}`,
-        );
-        request.authorityResponses[point.id] = { finding, response };
-        point.authorityFinding = finding;
-        point.position = response;
-      }
-      request.responded = date;
-      doc(
-        `Заполненное приложение к запросу в ${request.recipient}`,
-        "authority-response-appendix",
-        `Заполненное приложение к запросу в ${request.recipient}.`,
-        request.id,
-      );
-      note =
-        "Мотивированные ответы ДВГА/КВГА заполнены по всем оспариваемым пунктам.";
-      c.status =
-        requestRoutingStatus(c) || authorityStatus(c) || "response_approval";
-      doc(
-        request.route === "additional-hearing"
-          ? "Дополнительный мотивированный ответ ДВГА/КВГА по дополнительному запросу"
-          : "Мотивированный ответ ДВГА/КВГА",
-        "authority-response",
-        note,
-        request.id,
-      );
-      break;
-    }
-    case "approve-response": {
-      const request = authorityRequestsForRole(c, role).find(
-        (item) => !!item.responded && !item.responseApproved,
-      );
-      if (!request) throw new Error("Нет ответа, ожидающего согласования");
-      request.responseApproved = date;
-      c.status =
-        requestRoutingStatus(c) || authorityStatus(c) || "response_signed";
-      title = "Ответ ДВГА/КВГА согласован";
-      note = "Согласованный ответ ДВГА/КВГА ожидает подписания.";
-      break;
-    }
-    case "sign-response": {
-      const request = authorityRequestsForRole(c, role).find(
-        (item) => !!item.responseApproved && !item.responseSigned,
-      );
-      if (!request) throw new Error("Нет согласованного ответа для подписания");
-      request.responseSigned = date;
-      request.lifecycleStatus = "response_received";
-      const pausedDays = advanceAfterResponses(c, date);
-      if (pausedDays === null)
-        c.status =
-          requestRoutingStatus(c) || authorityStatus(c) || "request_approved";
-      title = "Ответ ДВГА/КВГА подписан";
-      note =
-        pausedDays === null
-          ? "Ответ получен в кабинете SAQ. Обращение ожидает ответы по остальным направленным запросам."
-          : "Все ответы поступили в SAQ. Обращение автоматически переведено на этап «Материалы».";
-      if (pausedDays && pausedDays > 0)
-        note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
-      next.notifications.push({
-        id: `notification-${c.id}-${next.notifications.length + 1}`,
-        caseId: c.id,
-        recipient: ROLES.work,
-        recipientRole: "work",
-        date,
-        read: false,
-        kind: "request-response",
-        text: `Поступил ответ ${request.recipient} на запрос по обращению №${c.appealNumber || c.id}. Откройте обращение для ознакомления.`,
-      });
-      break;
-    }
-    case "position": {
-      if (!allResponsesReadyForConfirmation(c))
-        throw new Error(
-          "Зафиксировать получение можно после поступления ответов на все запросы",
-        );
-      const receivedRequests = c.requests.filter(
-        (request) => !request.confirmed,
-      );
-      if (!receivedRequests.length)
-        throw new Error("Все полученные ответы уже зафиксированы");
-      receivedRequests.forEach((request) => {
-        if (!isDvgaOrKvgaRequest(request.recipient) && !request.responded)
-          request.responded = date;
-        request.confirmed = date;
-      });
-      note = `Рабочий орган зафиксировал получение ответов: ${receivedRequests
-        .map((request) => request.recipient)
-        .join(", ")}.`;
-      if (c.requestPauseStartedAt && canSuspendReview(c)) {
-        const pausedDays = workdaysBetween(c.requestPauseStartedAt, date);
-        if (pausedDays > 0) {
-          c.pauseDays += pausedDays;
-          note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
-        }
-      }
-      c.requestPauseStartedAt = undefined;
-      if (
-        c.requestRoute === "additional-analysis" ||
-        c.requestRoute === "additional-commission" ||
-        c.requestRoute === "additional-hearing"
-      ) {
-        c.requestRouteCompletedAt = date;
-      }
-      c.status = "materials";
-      doc("Полученные материалы по запросам", "position", note);
-      break;
-    }
-    case "record-external-response": {
-      const requestId = text("externalRequestId", "Запрос другого органа");
-      const request = c.requests.find(
-        (item) =>
-          item.id === requestId &&
-          item.template === "other" &&
-          !item.saqRecipient &&
-          Boolean(item.sent) &&
-          !item.responded,
-      );
-      if (!request)
-        throw new Error(
-          "Выберите подписанный запрос другого органа, ожидающий ответа",
-        );
-      request.responded = date;
-      request.responseRegistrationNumber = String(
-        form.get("responseRegistrationNumber") || "",
-      ).trim();
-      request.lifecycleStatus = "response_received";
-      const pausedDays = advanceAfterResponses(c, date);
-      title = `Ответ ${request.recipient} зафиксирован`;
-      note =
-        pausedDays === null
-          ? `Ответ ${request.recipient} сохранён. Обращение ожидает ответы по остальным направленным запросам.`
-          : "Получены ответы по всем направленным запросам. Обращение автоматически переведено на этап «Материалы».";
-      if (pausedDays && pausedDays > 0)
-        note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
-      doc(`Ответ ${request.recipient}`, "position", note, request.id);
-      break;
-    }
-    case "subject-response": {
-      if (
-        (role !== "demo-superuser" && !isSubjectRole(role)) ||
-        (role !== "demo-superuser" && role !== subjectRoleForCase(c))
-      )
-        throw new Error("Ответ может направить только Объект");
-      const request = c.requests.find(
-        (item) =>
-          item.template === "other" &&
-          item.saqRecipient === "subject" &&
+       …3103 tokens truncated…em.saqRecipient === "subject" &&
           Boolean(item.sent) &&
           !item.responded,
       );
@@ -2389,33 +2123,36 @@ export function applyAction(
       if (c.hearing) c.hearing.held = date;
 
       if (usesStatementScenario(c)) {
-        const hearingOutcome = String(form.get("hearingOutcome") || "").trim();
+        const hasNewArguments =
+          String(form.get("hearingHasNewArguments") || "") === "yes";
+        const hearingNextAction = String(
+          form.get("hearingNextAction") || (hasNewArguments ? "" : "proceed"),
+        ).trim();
         if (
           ![
-            "additional-request",
-            "without-request",
+            "return-request",
+            "return-analysis",
             "proceed",
-          ].includes(hearingOutcome)
+          ].includes(hearingNextAction)
         )
           throw new Error("Выберите дальнейшее действие после заслушивания");
 
-        if (hearingOutcome !== "proceed") {
-          const reasonField =
-            hearingOutcome === "additional-request"
-              ? "additionalRequestReason"
-              : "noRequestReason";
-          const reason = text(
-            reasonField,
-            hearingOutcome === "additional-request"
-              ? "Причина необходимости дополнительного запроса"
-              : "Обоснование отсутствия необходимости в дополнительном запросе",
+        if (!hasNewArguments && hearingNextAction !== "proceed")
+          throw new Error(
+            "При отсутствии новых доводов выберите переход на следующий этап",
           );
+
+        if (hasNewArguments) {
           const byPoint: Record<string, string> = {};
           disputed(c).forEach((point) => {
+            if (form.get(`hearingArgumentPoint_${point.id}`) !== "on") return;
             const value = String(
               form.get(`additionalArgument_${point.id}`) || "",
             ).trim();
-            if (!value) return;
+            if (!value)
+              throw new Error(
+                `Заполните дополнительные доводы по пункту ${point.number}`,
+              );
             byPoint[point.id] = value;
             point.additionalArguments = [
               ...(point.additionalArguments || []),
@@ -2424,10 +2161,19 @@ export function applyAction(
           });
           if (!Object.keys(byPoint).length)
             throw new Error(
-              "Укажите дополнительные доводы хотя бы по одному оспариваемому пункту",
+              "Отметьте хотя бы один оспариваемый пункт с новыми доводами",
             );
 
-          const round = (c.repeatHearingRound || 0) + 1;
+          const reason =
+            hearingNextAction === "return-request"
+              ? "Новые доводы заявителя требуют дополнительного запроса"
+              : hearingNextAction === "return-analysis"
+                ? "Новые доводы заявителя требуют повторного анализа"
+                : "Новые доводы заявителя зафиксированы на заслушивании";
+          const round = Math.max(
+            c.repeatHearingRound || 0,
+            c.hearingSupplements?.length || 0,
+          ) + 1;
           c.hearingSupplements = [
             ...(c.hearingSupplements || []),
             {
@@ -2435,36 +2181,45 @@ export function applyAction(
               date,
               reason,
               byPoint,
-              requiresRequest: hearingOutcome === "additional-request",
+              requiresRequest: hearingNextAction === "return-request",
             },
           ];
+          doc(
+            "Дополнительные доводы объекта гос. аудита (заявителя)",
+            "hearing-additional-arguments",
+            reason,
+          );
+        }
+
+        if (hearingNextAction === "return-request" || hearingNextAction === "return-analysis") {
+          const reason =
+            hearingNextAction === "return-request"
+              ? "Новые доводы заявителя требуют дополнительного запроса"
+              : "Новые доводы заявителя требуют повторного анализа";
+          const round = Math.max(
+            c.repeatHearingRound || 0,
+            c.hearingSupplements?.length || 0,
+          );
           c.repeatHearingStatus = "required";
           c.repeatHearingRound = round;
           c.repeatHearingReason = reason;
           c.repeatHearingRequestedAt = date;
           c.repeatHearingReadyAt = undefined;
           c.repeatHearingMeetingId = undefined;
-          doc(
-            "Дополнительные доводы объекта гос. аудита (заявителя)",
-            "hearing-additional-arguments",
-            reason,
-          );
 
-          if (hearingOutcome === "additional-request") {
+          if (hearingNextAction === "return-request") {
             c.requestRoute = "additional-hearing";
             c.requestRouteStartedAt = date;
             c.requestRouteCompletedAt = undefined;
             c.status = "accepted";
-            title = "Дополнительный запрос после заслушивания сформирован";
+            title = "Обращение возвращено на этап «Запрос»";
             note =
-              `Новые доводы требуют дополнительного запроса. ${reason} ` +
-              "Обращение возвращено на этап «Запрос».";
+              "Новые доводы и протокол заслушивания зафиксированы. Обращение возвращено на этап «Запрос».";
           } else {
             c.status = "materials";
-            title = "Дополнительные доводы зафиксированы";
+            title = "Обращение возвращено на этап «Анализ»";
             note =
-              `Новые доводы не требуют дополнительного запроса. ${reason} ` +
-              "Обращение возвращено к формированию справки.";
+              "Новые доводы и протокол заслушивания зафиксированы. Обращение возвращено на этап «Анализ» для оценки новых доводов.";
           }
           break;
         }
@@ -2472,7 +2227,7 @@ export function applyAction(
       c.status = "decided";
       title = "Заслушивание проведено";
       note =
-        "Протокол заслушивания вложен. Обращение переведено к формированию мотивированного ответа.";
+        "Протокол заслушивания зафиксирован. Обращение переведено к формированию мотивированного ответа.";
       break;
     case "forward": {
       checked(form, "materials");

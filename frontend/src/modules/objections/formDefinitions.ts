@@ -766,51 +766,45 @@ export function actionForm(
       if (usesStatementReviewScenario(c.appealType)) {
         fields.push(
           select(
-            "hearingOutcome",
-            "Дальнейшее действие",
+            "hearingHasNewArguments",
+            "Наличие новых доводов заявителя",
             [
-              ["", "Выберите действие"],
-              [
-                "additional-request",
-                "Новые доводы требуют дополнительного запроса",
-              ],
-              ["without-request", "Новые доводы не требуют запроса"],
+              ["yes", "Новые доводы имеются"],
+              ["no", "Новые доводы отсутствуют"],
+            ],
+            values.hearingHasNewArguments || "yes",
+          ),
+          select(
+            "hearingNextAction",
+            "Выберите дальнейшее действие",
+            [
+              ["return-request", "Вернуть на этап «Запрос»"],
+              ["return-analysis", "Вернуть на этап «Анализ»"],
               ["proceed", "Перейти на следующий этап"],
             ],
-            values.hearingOutcome || "",
+            values.hearingNextAction || "return-request",
           ),
         );
-        if (
-          values.hearingOutcome === "additional-request" ||
-          values.hearingOutcome === "without-request"
-        ) {
+        if ((values.hearingHasNewArguments || "yes") === "yes") {
           disputed(c).forEach((point) => {
-            const field = area(
-              `additionalArgument_${point.id}`,
-              `Дополнительные доводы объекта гос. аудита (заявителя) по пункту ${point.number}`,
-              values[`additionalArgument_${point.id}`] || "",
-            );
-            field.required = false;
-            fields.push(field);
+            fields.push({
+              name: `hearingArgumentPoint_${point.id}`,
+              label: `Пункт № ${point.number} — ${point.title}`,
+              type: "checkbox",
+            });
+            if (values[`hearingArgumentPoint_${point.id}`] === "on") {
+              fields.push(
+                area(
+                  `additionalArgument_${point.id}`,
+                  `Дополнительные доводы объекта гос. аудита (заявителя) по пункту ${point.number}`,
+                  values[`additionalArgument_${point.id}`] || "",
+                ),
+              );
+            }
           });
-          fields.push(
-            area(
-              values.hearingOutcome === "additional-request"
-                ? "additionalRequestReason"
-                : "noRequestReason",
-              values.hearingOutcome === "additional-request"
-                ? "Причина необходимости дополнительного запроса"
-                : "Обоснование отсутствия необходимости в дополнительном запросе",
-              values[
-                values.hearingOutcome === "additional-request"
-                  ? "additionalRequestReason"
-                  : "noRequestReason"
-              ] || "",
-            ),
-          );
         }
         note =
-          "Вложите протокол проведённого заслушивания. Выберите дальнейшее действие. При выборе дополнительного запроса или возврата к справке укажите новые доводы и обоснование.";
+          "Сначала укажите наличие новых доводов, затем выберите дальнейшее действие. При наличии новых доводов отметьте только оспариваемые пункты, к которым они относятся, и заполните открывшиеся поля.";
       } else {
         note =
           "Вложите протокол проведённого заслушивания. После сохранения обращение перейдёт к формированию мотивированного ответа.";

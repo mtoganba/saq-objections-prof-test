@@ -33,6 +33,7 @@ import {
 } from "./pages/ReferencePages";
 import { dateObject } from "./services/deadlines";
 import {
+  disputed,
   normalizeVoteChoice,
   pointOutcomeFromVotes,
   presidingChairId,
@@ -1258,24 +1259,30 @@ export default function ObjectionsModule() {
       action === "hearing-after-decision-project" &&
       usesStatementReviewScenario(updated.appealType)
     ) {
-      const hearingOutcome = String(form.get("hearingOutcome") || "");
+      const hasNewArguments =
+        String(form.get("hearingHasNewArguments") || "") === "yes";
+      const hearingNextAction = String(form.get("hearingNextAction") || "");
       if (
-        hearingOutcome === "additional-request" ||
-        hearingOutcome === "without-request"
+        hasNewArguments &&
+        ["return-request", "return-analysis"].includes(hearingNextAction)
       ) {
+        const reason = disputed(c)
+          .map((point) => {
+            if (form.get(`hearingArgumentPoint_${point.id}`) !== "on") return "";
+            const argument = String(
+              form.get(`additionalArgument_${point.id}`) || "",
+            ).trim();
+            return argument ? `Пункт № ${point.number}: ${argument}` : "";
+          })
+          .filter(Boolean)
+          .join("; ");
         postponeMeetingForAdditionalRequest(
           next,
           c.id,
-          String(
-            form.get(
-              hearingOutcome === "additional-request"
-                ? "additionalRequestReason"
-                : "noRequestReason",
-            ) || "Новые доводы представлены на заслушивании",
-          ),
-          hearingOutcome === "additional-request"
-            ? "направлением дополнительного запроса после заслушивания"
-            : "представлением новых доводов после заслушивания",
+          reason || "Новые доводы представлены на заслушивании",
+          hearingNextAction === "return-request"
+            ? "возвратом на этап «Запрос» после заслушивания"
+            : "возвратом на этап «Анализ» после заслушивания",
         );
       }
     }
