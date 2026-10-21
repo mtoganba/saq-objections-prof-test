@@ -1939,6 +1939,7 @@ export default function CaseWorkspace({
                         {preventiveControl
                           ? "Внутренний срок секретаря"
                           : "Исполнить до"}
+                      </span>
                       <strong>{formatDate(currentExecutionDeadline)}</strong>
                     </div>
                   )}
