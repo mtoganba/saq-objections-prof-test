@@ -2138,6 +2138,7 @@ export default function ObjectionsModule() {
                 }
                 if (
                   action === "assign-work-executor" ||
+                  action === "set-secretary-deadline" ||
                   action === "commission-vote" ||
                   action === "select-preventive-attendees" ||
                   action === "vote" ||
