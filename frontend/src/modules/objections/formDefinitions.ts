@@ -3,11 +3,12 @@ import type { Action, ObjectionCase, Role } from "../../types";
 import { DEMO_USER } from "../../config";
 import { OUTCOMES } from "../../data/constants";
 import { COMMISSION_ATTENDANCE_MEMBERS } from "../../data/objections";
-import { addWorkdays, filingDeadline } from "./services/deadlines";
+import { addWorkdays, filingDeadline, reviewDeadline } from "./services/deadlines";
 import { disputed } from "./services/decisions";
 import { controlDecisions } from "./services/workflow";
 import { hasSubjectSaqCabinet, subjectSaqCabinetLabel } from "./services/saqCabinets";
 import {
+  isPreventiveControlObjectionType,
   requiresMotivatedResponseType,
   usesStatementReviewScenario,
 } from "./appealTypes";
@@ -167,6 +168,7 @@ export function actionForm(
     action === "vote" ||
     action === "analysis" ||
     action === "assign-work-executor" ||
+    action === "set-secretary-deadline" ||
     action === "send-decision-project-eotinish" ||
     action === "record-decision-project-delivery" ||
     action === "record-final-response-delivery" ||
@@ -205,17 +207,45 @@ export function actionForm(
         "Заседание будет отложено. После получения ответа будет обновлена справка и назначено дополнительное заседание.";
       break;
     case "assign-work-executor":
-      title = "Выбрать исполнителя рабочего органа";
+      title = isPreventiveControlObjectionType(c.appealType)
+        ? "Назначить секретаря комиссии"
+        : "Выбрать исполнителя рабочего органа";
       fields.push(
         select(
           "assignee",
-          "Исполнитель рабочего органа",
+          isPreventiveControlObjectionType(c.appealType)
+            ? "Секретарь комиссии"
+            : "Исполнитель рабочего органа",
           WORK_EXECUTOR_OPTIONS,
         ),
       );
-      note =
-        "После выбора исполнителю будет направлено уведомление, а обращение станет доступно ему в реестре.";
+      if (isPreventiveControlObjectionType(c.appealType))
+        fields.push({
+          name: "secretaryDeadline",
+          label: "Внутренний срок секретаря",
+          type: "date",
+          value: c.secretaryDeadline || reviewDeadline(c),
+          max: reviewDeadline(c),
+          required: true,
+        });
+      note = isPreventiveControlObjectionType(c.appealType)
+        ? `Общий срок в 10 рабочих дней рассчитывается системой от даты получения обращения. Внутренний срок можно установить раньше, но не позже ${reviewDeadline(c)}.`
+        : "После выбора исполнителю будет направлено уведомление, а обращение станет доступно ему в реестре.";
       break;
+    case "set-secretary-deadline": {
+      const currentDeadline = c.secretaryDeadline || reviewDeadline(c);
+      title = "Сократить внутренний срок секретаря";
+      fields.push({
+        name: "secretaryDeadline",
+        label: "Новый внутренний срок секретаря",
+        type: "date",
+        value: currentDeadline,
+        max: currentDeadline,
+        required: true,
+      });
+      note = `Срок можно только сократить. Текущий срок — ${currentDeadline}; увеличить его нельзя.`;
+      break;
+    }
     case "screen":
       title = "Проверка допустимости и компетенции";
       fields.push(
