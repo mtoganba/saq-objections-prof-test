@@ -1,5 +1,8 @@
 import type { ObjectionCase, Role } from "../../../types";
-import { usesStatementReviewScenario } from "../appealTypes";
+import {
+  isPreventiveControlObjectionType,
+  usesStatementReviewScenario,
+} from "../appealTypes";
 export const holidays = ["2026-08-31", "2026-10-26", "2026-12-16"];
 export function dateObject(s: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s || ""))
@@ -68,6 +71,7 @@ export function filingDeadline(c: ObjectionCase) {
 }
 
 export function reviewDuration(c: ObjectionCase) {
+  if (isPreventiveControlObjectionType(c.appealType)) return 10;
   if (c.appealType === "Возражение на аудиторский отчет") return 30;
   if (
     [
@@ -90,11 +94,17 @@ export function reviewDuration(c: ObjectionCase) {
 }
 
 export function reviewPauseDays(c: ObjectionCase) {
+  if (isPreventiveControlObjectionType(c.appealType)) return 0;
   return c.appealType?.trim().startsWith("Жалоба") ? 0 : c.pauseDays;
 }
 
 export function reviewDeadline(c: ObjectionCase) {
-  let d = addWorkdays(c.document.received, reviewDuration(c));
+  const preventiveControl = isPreventiveControlObjectionType(c.appealType);
+  let d = addWorkdays(
+    preventiveControl ? c.intakeDate || c.registered : c.document.received,
+    reviewDuration(c),
+  );
+  if (preventiveControl) return d;
   if (c.extensionDays) d = addWorkdays(d, c.extensionDays);
   if (reviewPauseDays(c)) d = addWorkdays(d, reviewPauseDays(c));
   return d;
@@ -115,6 +125,10 @@ function authorityResponseDeadline(c: ObjectionCase, role?: Role) {
 }
 
 export function executionDeadline(c: ObjectionCase, role?: Role): string | null {
+  if (isPreventiveControlObjectionType(c.appealType))
+    return role === "kvga" || role === "dvga"
+      ? null
+      : c.secretaryDeadline || reviewDeadline(c);
   if (role === "dvga" || role === "kvga") {
     const deadline = authorityResponseDeadline(c, role);
     if (deadline) return deadline;
