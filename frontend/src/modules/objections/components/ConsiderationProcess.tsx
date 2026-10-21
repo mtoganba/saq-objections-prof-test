@@ -298,7 +298,7 @@ function FinalResponseApprovalPanel({ c }: { c: ObjectionCase }) {
   const motivated = isMotivatedResponseCase(c);
   const status = awaitingApproval ? "На согласовании" : "На подписании";
   const responsible = awaitingApproval
-    ? "Заместитель директора ДАВГА"
+    ? "Согласующий"
     : "Директор ДАВГА";
 
   return (
@@ -351,7 +351,7 @@ function DecisionProjectApprovalPanel({ c }: { c: ObjectionCase }) {
     .at(-1);
   const status = awaitingApproval ? "На согласовании" : "На подписании";
   const responsible = awaitingApproval
-    ? "Согласующий руководитель"
+    ? "Согласующий"
     : "Директор ДАВГА";
 
   return (
@@ -503,13 +503,13 @@ function executionSubstep(status: CaseStatus) {
 
 const TASK_HELP: Partial<Record<Action, string>> = {
   "assign-work-executor":
-    "Выберите исполнителя рабочего органа. После назначения обращение будет передано ему для формирования запроса.",
+    "Выберите исполнителя. После назначения обращение будет передано ему для формирования запроса.",
   screen:
     "Проверьте заявителя, исходный документ, срок подачи и компетенцию органа. Назначьте ответственного и зафиксируйте основание принятия к рассмотрению.",
   request:
-    "Сформируйте один или оба вида запросов. Когда все документы готовы, направьте их заместителю директора ДАВГА на согласование.",
+    "Сформируйте один или оба вида запросов. Когда документы готовы, направьте их на согласование.",
   "send-request-approval":
-    "Проверьте сформированные запросы и приложения, затем направьте их заместителю директора ДАВГА на согласование.",
+    "Проверьте сформированные запросы и приложения, затем направьте их на согласование.",
   "approve-request":
     "Согласуйте каждый сформированный запрос отдельно. После согласования всех запросов они поступят директору ДАВГА для подписания.",
   "sign-request":
@@ -647,7 +647,7 @@ export default function ConsiderationProcess({
     next?.action === "approve-request" ||
     next?.action === "approve-certificate" ||
     next?.action === "approve-meeting-certificate"
-      ? "Заместитель директора ДАВГА"
+      ? "Согласующий"
       : next
         ? ROLES[next.role]
         : "";
@@ -881,7 +881,9 @@ export default function ConsiderationProcess({
             <p>
               {preventiveCase && next.action === "assign-work-executor"
                 ? "Выберите секретаря комиссии. Общий срок рассчитывается от даты получения обращения; внутренний срок можно задать короче."
-                : TASK_HELP[next.action]}
+                : preventiveCase && next.action === "request"
+                  ? "Письмо-запрос не формируется. Система подготовит только приложение в печатной форме, затем его можно направить на согласование."
+                  : TASK_HELP[next.action]}
             </p>
             <p className="consideration-owner">
               Исполнитель: <strong>{manualCommissionVotingAvailable ? "Рабочий орган" : taskOwner}</strong>
