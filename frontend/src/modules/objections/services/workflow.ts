@@ -212,7 +212,10 @@ function recommendationsAvailable(c: ObjectionCase) {
 }
 
 function canSuspendReview(c: ObjectionCase) {
-  return (c.appealType || "").trim().startsWith("Возражение");
+  return (
+    !isPreventiveControlObjectionType(c.appealType) &&
+    (c.appealType || "").trim().startsWith("Возражение")
+  );
 }
 
 /** Все направленные и не отменённые запросы должны получить ответ.
@@ -450,7 +453,9 @@ export function nextAction(c: ObjectionCase, role?: Role): ActionOption | null {
   const map: Partial<Record<ObjectionCase["status"], ActionOption>> = {
     received: {
       action: "assign-work-executor",
-      label: "Выбрать исполнителя рабочего органа",
+      label: isPreventiveControlObjectionType(c.appealType)
+        ? "Назначить секретаря комиссии"
+        : "Выбрать исполнителя рабочего органа",
       role: "director",
     },
     accepted: {
@@ -740,11 +745,18 @@ export function additionalActions(c: ObjectionCase): ActionOption[] {
         label: "Вложить ответ другого органа",
         role: "work",
       });
-    options.push({
-      action: "supplement",
-      label: "Дополнение к возражению",
-      role: "work",
-    });
+    if (isPreventiveControlObjectionType(c.appealType))
+      options.push({
+        action: "set-secretary-deadline",
+        label: "Сократить внутренний срок секретаря",
+        role: "director",
+      });
+    else
+      options.push({
+        action: "supplement",
+        label: "Дополнение к возражению",
+        role: "work",
+      });
     if (
       !isPreventiveControlObjectionType(c.appealType) &&
       ["commission_voting", "meeting"].includes(c.status)
@@ -953,12 +965,47 @@ export function applyAction(
       break;
     }
     case "assign-work-executor": {
-      c.assignee = text("assignee", "Исполнитель рабочего органа");
+      c.assignee = text(
+        "assignee",
+        isPreventiveControlObjectionType(c.appealType)
+          ? "Секретарь комиссии"
+          : "Исполнитель рабочего органа",
+      );
+      if (isPreventiveControlObjectionType(c.appealType)) {
+        if (role !== "director" && role !== "demo-superuser")
+          throw new Error("Назначать секретаря может только руководитель секретаря");
+        const statutoryDeadline = reviewDeadline(c);
+        const previousDeadline = c.secretaryDeadline || statutoryDeadline;
+        const assignedDeadline =
+          String(form.get("secretaryDeadline") || "").trim() ||
+          previousDeadline ||
+          statutoryDeadline;
+        dateObject(assignedDeadline);
+        if (assignedDeadline > statutoryDeadline)
+          throw new Error(
+            "Внутренний срок секретаря не может быть позже предельного срока рассмотрения",
+          );
+        if (assignedDeadline > previousDeadline)
+          throw new Error(
+            "Внутренний срок можно только сократить; увеличить его нельзя",
+          );
+        if (assignedDeadline < date && assignedDeadline !== previousDeadline)
+          throw new Error(
+            "Нельзя установить внутренний срок секретаря в прошлом",
+          );
+        c.secretaryDeadline = assignedDeadline;
+      }
       c.unread = false;
       c.unreadForAssignee = true;
       c.status = "accepted";
-      title = "Исполнитель рабочего органа назначен";
-      note = `Директор ДАВГА назначил исполнителем: ${c.assignee}.`;
+      title = isPreventiveControlObjectionType(c.appealType)
+        ? "Секретарь комиссии назначен"
+        : "Исполнитель рабочего органа назначен";
+      note = `${ROLES.director} назначил исполнителем: ${c.assignee}.${
+        isPreventiveControlObjectionType(c.appealType)
+          ? ` Внутренний срок секретаря установлен до ${formatDate(c.secretaryDeadline!)}. Общий срок рассмотрения: ${formatDate(reviewDeadline(c))}.`
+          : ""
+      }`;
       next.notifications.push({
         id: `notification-${c.id}-${next.notifications.length + 1}`,
         caseId: c.id,
@@ -967,6 +1014,35 @@ export function applyAction(
         read: false,
         text: `Вам назначено обращение №${c.appealNumber || c.id} от ${formatDate(c.appealDate || c.registered)}. Необходимо сформировать запрос в ДВГА/КВГА.`,
       });
+      break;
+    }
+    case "set-secretary-deadline": {
+      if (!isPreventiveControlObjectionType(c.appealType))
+        throw new Error(
+          "Внутренний срок секретаря настраивается только для возражений по профилактическому контролю",
+        );
+      if (role !== "director" && role !== "demo-superuser")
+        throw new Error("Изменять внутренний срок может только руководитель секретаря");
+      const currentDeadline = c.secretaryDeadline || reviewDeadline(c);
+      const newDeadline = required(
+        form,
+        "secretaryDeadline",
+        "Новый внутренний срок секретаря",
+      );
+      dateObject(newDeadline);
+      if (newDeadline >= currentDeadline)
+        throw new Error(
+          "Внутренний срок можно только сократить; увеличить его нельзя",
+        );
+      if (newDeadline > reviewDeadline(c))
+        throw new Error(
+          "Внутренний срок секретаря не может быть позже предельного срока рассмотрения",
+        );
+      if (newDeadline < date)
+        throw new Error("Нельзя установить внутренний срок в прошлом");
+      c.secretaryDeadline = newDeadline;
+      title = "Внутренний срок секретаря сокращён";
+      note = `Руководитель секретаря сократил внутренний срок с ${formatDate(currentDeadline)} до ${formatDate(newDeadline)}. Предельный срок рассмотрения — ${formatDate(reviewDeadline(c))}.`;
       break;
     }
     case "screen": {
@@ -2950,6 +3026,10 @@ export function applyAction(
       doc("Подтверждение вручения результата", "receipt", note);
       break;
     case "supplement":
+      if (isPreventiveControlObjectionType(c.appealType))
+        throw new Error(
+          "Срок рассмотрения возражения по профилактическому контролю не продлевается",
+        );
       checked(form, "formal", "notified");
       c.extensionDays += 15;
       note = text("text", "Содержание дополнения");
