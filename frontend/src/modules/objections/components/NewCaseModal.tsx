@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Button, Modal, Notice } from "../../../components/ui";
 import { makeCase } from "../../../data/objections";
+import { ROLES } from "../../../data/constants";
 import type {
   ApplicantIdentifierType,
   CaseType,
@@ -256,6 +257,9 @@ export default function NewCaseModal({
               "Дата возражения, жалобы, заявления",
             );
             const received = get("received", "Дата получения документа");
+            const intakeDate = isPreventiveControlObjection
+              ? get("intakeDate", "Дата получения обращения")
+              : state.date;
             const filed = state.date;
             const actionAppealAuthorities = isActionComplaint
               ? actionAppealIds.map((appealId, index) => ({
@@ -282,6 +286,7 @@ export default function NewCaseModal({
             [
               appealDate,
               received,
+              intakeDate,
               filed,
               documentDate,
               ...actionAppealAuthorities.map((item) => item.documentDate),
@@ -321,6 +326,8 @@ export default function NewCaseModal({
               address: get("address", "Местонахождение"),
               applicant: String(data.get("applicant") || "").trim(),
               registered: state.date,
+              intakeDate,
+              registrationMethod: "manual",
               filed,
               channel: get("channel", "Портал / цифровая система"),
               issuer: isActionComplaint
@@ -483,10 +490,10 @@ export default function NewCaseModal({
                 {
                   id: `notification-${c.id}-${state.notifications.length + 1}`,
                   caseId: c.id,
-                  recipient: "Директор ДАВГА",
+                  recipient: ROLES.director,
                   date: state.date,
                   read: false,
-                  text: `Поступило обращение №${c.appealNumber || c.id} от ${appealDate}. Выберите исполнителя рабочего органа.`,
+                  text: `Обращение с источником SAQ №${c.appealNumber || c.id} от ${appealDate} внесено вручную. Выберите секретаря комиссии.`,
                 },
               ];
             }
@@ -700,6 +707,17 @@ export default function NewCaseModal({
                 }}
               />
             ),
+          )}
+          {isPreventiveControlObjection && (
+            <Field
+              field={{
+                name: "intakeDate",
+                label: "Дата получения обращения",
+                type: "date",
+                value: state.date,
+                required: true,
+              }}
+            />
           )}
         </div>
         {needsAgendaTemplateFields && !isActionComplaint && (
@@ -955,8 +973,7 @@ export default function NewCaseModal({
           }}
         />
         <small className="muted">
-          При выборе «SAQ» обращение сначала поступает директору ДАВГА для
-          назначения исполнителя рабочего органа.
+          Источник поступления и способ регистрации фиксируются отдельно. В текущем прототипе обращение с источником «SAQ» вносится секретарем вручную и поступает руководителю секретаря для назначения секретаря комиссии.
         </small>
         <Field
           field={{
