@@ -623,10 +623,17 @@ export default function ConsiderationProcess({
       option.action !== "fill-meeting-certificate" &&
       option.action !== "supplement" &&
       option.action !== "court" &&
-      option.action !== "receipt",
+      option.action !== "receipt" &&
+      (option.action !== "set-secretary-deadline" ||
+        role === "director" ||
+        role === "demo-superuser"),
   );
   const extras = inRequestFormationStage
-    ? availableExtras.filter((option) => option.action === "supplement")
+    ? availableExtras.filter(
+        (option) =>
+          option.action === "supplement" ||
+          option.action === "set-secretary-deadline",
+      )
     : availableExtras;
   const lastEvent = c.history.at(-1);
   const caseRecommendations = recommendations.filter(
