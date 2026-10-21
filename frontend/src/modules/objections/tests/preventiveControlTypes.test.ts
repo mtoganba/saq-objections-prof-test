@@ -17,7 +17,11 @@ import {
 import { actionForm } from "../formDefinitions";
 import ActionModal from "../components/ActionModal";
 import ConsiderationProcess from "../components/ConsiderationProcess";
-import { reviewDuration } from "../services/deadlines";
+import {
+  executionDeadline,
+  reviewDeadline,
+  reviewDuration,
+} from "../services/deadlines";
 import {
   additionalActions,
   applyAction,
@@ -58,6 +62,9 @@ test("demo seed replaces the removed examples with the requested act objection",
   assert.equal(c.bin, "001002003004");
   assert.equal(c.document.number, "57");
   assert.equal(c.document.date, "2026-09-01");
+  assert.equal(c.intakeDate, "2026-09-08");
+  assert.equal(c.registrationMethod, "manual");
+  assert.equal(c.secretaryDeadline, "2026-09-22");
   assert.deepEqual(
     c.issues.filter((point) => point.disputed).map((point) => point.number),
     ["4", "8"],
@@ -183,6 +190,57 @@ test("preventive-control objections use the statement review scenario", () => {
     c.status = "decided";
     assert.equal(nextAction(c)?.label, "Сформировать мотивированный ответ");
   }
+});
+
+test("preventive-control review uses one fixed 10-day deadline and a shorter secretary target", () => {
+  const c = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
+  c.intakeDate = "2026-10-21";
+  c.registered = "2026-10-22";
+  c.document.received = "2026-09-01";
+  c.extensionDays = 15;
+  c.pauseDays = 8;
+  c.secretaryDeadline = "2026-11-04";
+
+  assert.equal(reviewDeadline(c), "2026-11-05");
+  assert.equal(executionDeadline(c, "work"), "2026-11-04");
+  assert.equal(executionDeadline(c, "director"), "2026-11-04");
+  assert.equal(executionDeadline(c, "dvga"), null);
+  assert.ok(
+    !additionalActions(c).some((action) => action.action === "supplement"),
+  );
+});
+
+test("the manager can shorten but cannot extend the secretary's internal deadline", () => {
+  const state = initialState();
+  const c = state.cases[0];
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  const assignForm = new FormData();
+  assignForm.set("assignee", "Секретарь комиссии");
+  assignForm.set("secretaryDeadline", "2026-09-21");
+
+  let next = applyAction(
+    state,
+    c.id,
+    "assign-work-executor",
+    "director",
+    assignForm,
+  );
+  assert.equal(next.cases[0].secretaryDeadline, "2026-09-21");
+  assert.equal(reviewDeadline(next.cases[0]), "2026-09-22");
+
+  const extensionForm = new FormData();
+  extensionForm.set("secretaryDeadline", "2026-09-22");
+  assert.throws(
+    () =>
+      applyAction(
+        next,
+        c.id,
+        "set-secretary-deadline",
+        "director",
+        extensionForm,
+      ),
+    /можно только сократить/,
+  );
 });
 
 test("preventive-control meeting records commission votes without a meeting certificate", () => {
