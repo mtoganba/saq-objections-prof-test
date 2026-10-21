@@ -14,6 +14,7 @@ import {
   PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION,
   preventiveControlSourceDocumentLabels,
 } from "../appealTypes";
+import { DocumentContent } from "../components/DocumentModal";
 import { actionForm } from "../formDefinitions";
 import ActionModal from "../components/ActionModal";
 import ConsiderationProcess from "../components/ConsiderationProcess";
@@ -168,17 +169,39 @@ test("SAQ object cabinet can choose an act and automatically see its data and vi
   assert.match(html, /ОПИ-01 — пункт нарушения № 2/);
   assert.match(html, /ОПИ-01 — пункт нарушения № 3/);
   assert.match(html, /Требования заявителя/);
+  assert.match(html, /type="file"/);
+  assert.doesNotMatch(html, /Дата получения документа/);
+  assert.doesNotMatch(html, /Краткое описание/);
+  assert.doesNotMatch(html, /textarea[^>]*name="requirements"/);
 });
 
 test("SAQ filing creates an automatically numbered case with only selected act points", () => {
   const state = initialState();
   const sourceDocument = SAQ_PREVENTIVE_CONTROL_DOCUMENTS[0];
+  const requirementFile = {
+    name: "Требования заявителя.pdf",
+    filename: "Требования заявителя.pdf",
+    kind: "attachment" as const,
+    text: "Требования заявителя",
+    author: "Заявитель",
+    date: state.date,
+    dataUrl: "data:application/pdf;base64,AA==",
+  };
+  const evidence1 = {
+    ...requirementFile,
+    name: "Доказательства-1.pdf",
+    filename: "Доказательства-1.pdf",
+    text: "Доказательства по пункту № 1",
+  };
+  const evidence3 = {
+    ...requirementFile,
+    name: "Доказательства-3.pdf",
+    filename: "Доказательства-3.pdf",
+    text: "Доказательства по пункту № 3",
+  };
   const result = createSaqApplicantObjection({
     state,
     sourceDocument,
-    received: "2026-09-03",
-    summary: "Оспариваем выводы акта",
-    requirements: "Исключить выводы по пунктам 1 и 3",
     selectedPointIds: [
       "preventive-act-57-point-1",
       "preventive-act-57-point-3",
@@ -186,6 +209,11 @@ test("SAQ filing creates an automatically numbered case with only selected act p
     pointArguments: {
       "preventive-act-57-point-1": "Отчетность предоставлена своевременно.",
       "preventive-act-57-point-3": "Расчет количества нарушения неверен.",
+    },
+    requirementsAttachments: [requirementFile],
+    evidenceAttachmentsByPoint: {
+      "preventive-act-57-point-1": [evidence1],
+      "preventive-act-57-point-3": [evidence3],
     },
   });
   const c = result.state.cases.at(-1)!;
@@ -201,13 +229,33 @@ test("SAQ filing creates an automatically numbered case with only selected act p
   assert.equal(c.address, SAQ_APPLICANT_PROFILE.address);
   assert.equal(c.document.number, "57");
   assert.equal(c.document.date, "2026-09-02");
-  assert.equal(c.applicantRequirements, "Исключить выводы по пунктам 1 и 3");
+  assert.equal(c.document.received, state.date);
+  assert.equal(c.request, "");
   assert.deepEqual(c.issues.map((point) => point.number), ["1", "3"]);
+  assert.deepEqual(
+    c.issues.map((point) => point.authorityFinding),
+    [
+      sourceDocument.points[0].description,
+      sourceDocument.points[2].description,
+    ],
+  );
   assert.deepEqual(
     c.issues.map((point) => point.argument),
     [
       "Отчетность предоставлена своевременно.",
       "Расчет количества нарушения неверен.",
+    ],
+  );
+  assert.deepEqual(
+    c.issues.map((point) => point.evidence),
+    ["Доказательства-1.pdf", "Доказательства-3.pdf"],
+  );
+  assert.deepEqual(
+    c.documents.map((document) => document.text),
+    [
+      "Требования заявителя",
+      "Доказательства по пункту № 1",
+      "Доказательства по пункту № 3",
     ],
   );
   assert.equal(c.secretaryDeadline, "2026-09-22");
@@ -217,6 +265,90 @@ test("SAQ filing creates an automatically numbered case with only selected act p
   );
 });
 
+test("SAQ violation descriptions appear in the request appendix and the secretary fills the summary after assignment", () => {
+  const state = initialState();
+  const sourceDocument = SAQ_PREVENTIVE_CONTROL_DOCUMENTS[0];
+  const makeAttachment = (name: string, text: string) => ({
+    name,
+    filename: name,
+    kind: "attachment" as const,
+    text,
+    author: "Заявитель",
+    date: state.date,
+    dataUrl: "data:application/pdf;base64,AA==",
+  });
+  const submitted = createSaqApplicantObjection({
+    state,
+    sourceDocument,
+    selectedPointIds: ["preventive-act-57-point-2"],
+    pointArguments: {
+      "preventive-act-57-point-2": "Пункт оспаривается.",
+    },
+    requirementsAttachments: [
+      makeAttachment("Требования.pdf", "Требования заявителя"),
+    ],
+    evidenceAttachmentsByPoint: {
+      "preventive-act-57-point-2": [
+        makeAttachment(
+          "Доказательство-2.pdf",
+          "Доказательства по пункту № 2",
+        ),
+      ],
+    },
+  });
+  const afterAssignment = structuredClone(submitted.state);
+  const assignedCase = afterAssignment.cases.find(
+    (item) => item.id === submitted.caseId,
+  )!;
+  assignedCase.status = "accepted";
+  assignedCase.assignee = "Секретарь комиссии";
+
+  const requestDefinition = actionForm(
+    "request",
+    assignedCase,
+    afterAssignment.date,
+    {},
+    "work",
+  );
+  assert.ok(
+    requestDefinition.fields.some(
+      (field) =>
+        field.name === "summary" &&
+        field.label === "Краткое описание обращения",
+    ),
+  );
+  const requestForm = new FormData();
+  requestForm.set("summary", "Возражение по пункту 2 акта");
+  requestForm.set("recipient", "ДВГА по г. Астана");
+  requestForm.set("executor", "Секретарь комиссии");
+  const requested = applyAction(
+    afterAssignment,
+    submitted.caseId,
+    "request",
+    "work",
+    requestForm,
+  );
+  const requestedCase = requested.cases.find(
+    (item) => item.id === submitted.caseId,
+  )!;
+  const appendixDocument = requestedCase.documents.find(
+    (document) => document.kind === "request-appendix",
+  );
+  const appendixHtml = renderToStaticMarkup(
+    createElement(DocumentContent, {
+      c: requestedCase,
+      kind: "request-appendix",
+      document: appendixDocument,
+    }),
+  );
+
+  assert.equal(requestedCase.request, "Возражение по пункту 2 акта");
+  assert.match(
+    appendixHtml,
+    /Выявлено нарушение по предоставлению отчетности в части количества нарушения 2/,
+  );
+  assert.doesNotMatch(appendixHtml, /количества нарушения 3/);
+});
 
 test("preventive-control objections use the statement review scenario", () => {
   for (const appealType of [
@@ -341,6 +473,7 @@ test("preventive-control request creates a printed appendix without a letter", (
     c.status = "accepted";
     const form = new FormData();
     form.set("recipient", "ДВГА по г. Астана");
+    form.set("summary", "Оспариваем выводы по акту");
 
     const next = applyAction(state, c.id, "request", "work", form);
     assert.equal(
