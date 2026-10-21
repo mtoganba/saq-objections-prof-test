@@ -6,7 +6,7 @@ export const TYPES = {
 export const ROLES = {
   "demo-superuser": "Демо-суперпользователь",
   work: "Секретарь комиссии",
-  deputy: "Заместитель директора ДАВГА",
+  deputy: "Согласующий",
   director: "Руководитель секретаря",
   dvga: "ДВГА",
   kvga: "КВГА",
