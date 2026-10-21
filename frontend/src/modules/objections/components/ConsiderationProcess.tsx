@@ -878,7 +878,11 @@ export default function ConsiderationProcess({
           <div>
             <span className="consideration-eyebrow">Текущая задача</span>
             <h4>{taskTitle}</h4>
-            <p>{TASK_HELP[next.action]}</p>
+            <p>
+              {preventiveCase && next.action === "assign-work-executor"
+                ? "Выберите секретаря комиссии. Общий срок рассчитывается от даты получения обращения; внутренний срок можно задать короче."
+                : TASK_HELP[next.action]}
+            </p>
             <p className="consideration-owner">
               Исполнитель: <strong>{manualCommissionVotingAvailable ? "Рабочий орган" : taskOwner}</strong>
             </p>
