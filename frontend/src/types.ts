@@ -544,8 +544,6 @@ export interface ObjectionCase {
   submittedViaSaqApplicant?: boolean;
   /** Идентификатор выбранного заявителем документа из источника SAQ. */
   sourceDocumentId?: string;
-  /** Текст требований, заполненный заявителем в кабинете SAQ. */
-  applicantRequirements?: string;
   filed: string;
   channel: string;
   issuer: string;
