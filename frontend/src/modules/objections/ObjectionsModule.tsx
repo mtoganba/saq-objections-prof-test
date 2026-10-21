@@ -1158,7 +1158,12 @@ export default function ObjectionsModule() {
         const next = applyAction(model.state, c.id, action, model.role, form);
         const updated = next.cases.find((item) => item.id === c.id)!;
         delete updated.analysisDraft;
-        model.commit(next, "Справка сформирована");
+        model.commit(
+          next,
+          isPreventiveControlObjectionType(updated.appealType)
+            ? "Приложение сформировано"
+            : "Справка сформирована",
+        );
       } else {
         model.perform(c.id, action, form);
       }

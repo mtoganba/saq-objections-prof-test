@@ -524,7 +524,9 @@ export function nextAction(c: ObjectionCase, role?: Role): ActionOption | null {
     materials: {
       action: "analysis",
       label:
-        c.hearingSupplements?.length
+        isPreventiveControlObjectionType(c.appealType)
+          ? "Сформировать приложение"
+          : c.hearingSupplements?.length
           ? "Сформировать справку по дополнительным доводам после заслушивания"
           : c.requestRoute === "additional-analysis" ||
               c.requestRoute === "additional-commission" ||
@@ -535,7 +537,9 @@ export function nextAction(c: ObjectionCase, role?: Role): ActionOption | null {
     },
     forwarded: {
       action: "analysis",
-      label: "Сформировать справку",
+      label: isPreventiveControlObjectionType(c.appealType)
+        ? "Сформировать приложение"
+        : "Сформировать справку",
       role: reviewer,
     },
     circulated: {
@@ -885,6 +889,8 @@ export function addDocument(
       certificate: c.certificate || null,
       requests: c.requests,
       hearingSupplements: c.hearingSupplements || [],
+      analysisAppendixArgumentsByPoint:
+        c.analysisAppendixArgumentsByPoint || {},
     }),
   });
 }
@@ -1150,7 +1156,11 @@ export function applyAction(
       });
       if (canSuspendReview(c) && !c.requestPauseStartedAt)
         c.requestPauseStartedAt = sent;
-      if (firstSentRequest && !isComplaintOrStatement(c))
+      if (
+        firstSentRequest &&
+        !isComplaintOrStatement(c) &&
+        !isPreventiveControlObjectionType(c.appealType)
+      )
         next.notifications.push({
           id: `notification-${c.id}-${next.notifications.length + 1}`,
           caseId: c.id,
@@ -1272,7 +1282,10 @@ export function applyAction(
         });
       if (firstSignedRequest) {
         if (canSuspendReview(c)) c.requestPauseStartedAt = date;
-        if (!isComplaintOrStatement(c))
+        if (
+          !isComplaintOrStatement(c) &&
+          !isPreventiveControlObjectionType(c.appealType)
+        )
           next.notifications.push({
             id: `notification-${c.id}-${next.notifications.length + 1}`,
             caseId: c.id,
@@ -1821,6 +1834,43 @@ export function applyAction(
     }
     case "analysis": {
       const points = disputed(c);
+      if (isPreventiveControlObjectionType(c.appealType)) {
+        c.analysisAppendixArgumentsByPoint = Object.fromEntries(
+          points.map((point) => [
+            point.id,
+            text(
+              `analysisAppendixArguments_${point.id}`,
+              `Доводы по пункту ${point.number}`,
+            ),
+          ]),
+        );
+        c.status = "commission_members";
+        c.result = null;
+        c.votes = null;
+        c.meeting = null;
+        title = "Приложение сформировано";
+        note =
+          "Приложение сформировано. Материалы обращения открыты всем членам Апелляционной комиссии; секретарь определит состав участников заседания.";
+        doc(
+          "Приложение к материалам обращения",
+          "analysis-appendix",
+          note,
+        );
+        COMMISSION_ATTENDANCE_MEMBERS.forEach((member) => {
+          next.notifications.push({
+            id: `commission-materials-${c.id}-${member.id}-${next.notifications.length + 1}`,
+            caseId: c.id,
+            recipient: member.name,
+            recipientRole: "commission",
+            commissionMemberId: member.id,
+            date,
+            read: false,
+            kind: "commission-materials",
+            text: `Материалы по обращению №${c.appealNumber || c.id} открыты для ознакомления. Секретарь комиссии отметит фактический состав заседания.`,
+          });
+        });
+        break;
+      }
       const argumentNames = points.map((point) => `davgaArguments_${point.id}`);
       if (argumentNames.some((name) => form.has(name))) {
         c.certificate = {

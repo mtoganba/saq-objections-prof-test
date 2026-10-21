@@ -427,18 +427,26 @@ export function actionForm(
         "Вложите ответ на запрос. После отправки он поступит в кабинет рабочего органа.";
       break;
     case "analysis":
-      title = "Сформировать справку";
+      title = isPreventiveControlObjectionType(c.appealType)
+        ? "Сформировать приложение"
+        : "Сформировать справку";
       for (const point of disputed(c)) {
         fields.push(
           heading(
             `davgaArgumentsHeading_${point.id}`,
             `Оспариваемый пункт ${point.number}`,
           ),
-          area(
-            `davgaArguments_${point.id}`,
-            "Доводы ДАВГА",
-            c.certificate?.davgaArgumentsByPoint?.[point.id] || "",
-          ),
+          isPreventiveControlObjectionType(c.appealType)
+            ? area(
+                `analysisAppendixArguments_${point.id}`,
+                "Доводы органа аудита, заявителя, КВГА",
+                c.analysisAppendixArgumentsByPoint?.[point.id] || "",
+              )
+            : area(
+                `davgaArguments_${point.id}`,
+                "Доводы ДАВГА",
+                c.certificate?.davgaArgumentsByPoint?.[point.id] || "",
+              ),
         );
       }
       break;
@@ -1114,7 +1122,9 @@ export function actionForm(
         : action === "approve-request"
           ? "Согласовать запрос"
           : action === "analysis"
-            ? "Сформировать справку"
+            ? isPreventiveControlObjectionType(c.appealType)
+              ? "Сформировать приложение"
+              : "Сформировать справку"
           : action === "select-preventive-attendees"
             ? "Сохранить состав заседания"
             : action === "create-decision-project"

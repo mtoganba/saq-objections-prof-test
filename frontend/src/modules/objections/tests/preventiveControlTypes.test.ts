@@ -568,6 +568,201 @@ test("preventive-control request creates a printed appendix without a letter", (
   }
 });
 
+test("preventive-control analysis creates an appendix and opens materials to the commission", () => {
+  let state = initialState();
+  const c = state.cases[0];
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  c.status = "materials";
+  c.certificate = null;
+  c.members = [];
+  c.votes = null;
+
+  const definition = actionForm("analysis", c, state.date, {}, "work");
+  assert.equal(definition.title, "Сформировать приложение");
+  assert.equal(definition.submit, "Сформировать приложение");
+  const points = c.issues.filter((point) => point.disputed);
+  assert.equal(
+    definition.fields.filter((field) => field.type === "textarea").length,
+    points.length,
+  );
+  assert.ok(
+    definition.fields
+      .filter((field) => field.type === "textarea")
+      .every(
+        (field) =>
+          field.label === "Доводы органа аудита, заявителя, КВГА",
+      ),
+  );
+
+  const modalHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "analysis",
+      c,
+      date: state.date,
+      role: "work",
+      onSubmit() {},
+      onClose() {},
+    }),
+  );
+  assert.match(modalHtml, /Приложение к материалам обращения/);
+  assert.match(modalHtml, /Доводы органа аудита, заявителя, КВГА/);
+
+  const form = new FormData();
+  points.forEach((point) =>
+    form.set(
+      "analysisAppendixArguments_" + point.id,
+      "Доводы для пункта " + point.number,
+    ),
+  );
+  state = applyAction(state, c.id, "analysis", "work", form);
+
+  const preparedCase = state.cases[0];
+  assert.equal(preparedCase.status, "commission_members");
+  assert.equal(preparedCase.certificate, null);
+  assert.equal(
+    preparedCase.documents.some((document) => document.kind === "certificate"),
+    false,
+  );
+  assert.equal(
+    preparedCase.documents.filter((document) => document.kind === "analysis-appendix")
+      .length,
+    1,
+  );
+  assert.equal(
+    state.notifications.filter(
+      (notification) =>
+        notification.caseId === preparedCase.id &&
+        notification.kind === "commission-materials",
+    ).length,
+    COMMISSION_ATTENDANCE_MEMBERS.length,
+  );
+  assert.equal(nextAction(preparedCase, "work")?.action, "select-preventive-attendees");
+
+  const appendix = preparedCase.documents.find(
+    (document) => document.kind === "analysis-appendix",
+  );
+  const printHtml = renderToStaticMarkup(
+    createElement(DocumentContent, {
+      c: preparedCase,
+      kind: "analysis-appendix",
+      document: appendix,
+    }),
+  );
+  assert.match(printHtml, /№ п-п/);
+  assert.match(printHtml, /Нарушение, по которым поступило возражение/);
+  assert.match(printHtml, /Доводы органа аудита, заявителя, КВГА/);
+  assert.match(printHtml, /Доводы для пункта 4/);
+  assert.doesNotMatch(printHtml, /<h1>Справка<\/h1>/);
+
+  const attendees = new FormData();
+  COMMISSION_ATTENDANCE_MEMBERS.forEach((member) =>
+    attendees.set("attendee_" + member.id, "on"),
+  );
+  state = applyAction(
+    state,
+    c.id,
+    "select-preventive-attendees",
+    "work",
+    attendees,
+  );
+  const composedCase = state.cases[0];
+  assert.equal(nextAction(composedCase, "commission")?.action, "commission-vote");
+
+  const [member, otherMember] = composedCase.members;
+  const commissionVoteHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "commission-vote",
+      c: composedCase,
+      date: state.date,
+      role: "commission",
+      commissionMemberId: member.id,
+      onSubmit() {},
+      onClose() {},
+    }),
+  );
+  assert.match(
+    commissionVoteHtml,
+    new RegExp("commissionVote_" + points[0].id + "_" + member.id),
+  );
+  assert.doesNotMatch(
+    commissionVoteHtml,
+    new RegExp("commissionVote_" + points[0].id + "_" + otherMember.id),
+  );
+
+  const commissionVote = new FormData();
+  commissionVote.set("commissionMember", member.id);
+  commissionVote.set("commissionVote_" + points[0].id + "_" + member.id, "accept");
+  commissionVote.set(
+    "commissionReason_" + points[0].id + "_" + member.id,
+    "Подтверждено материалами дела",
+  );
+  state = applyAction(
+    state,
+    c.id,
+    "commission-vote",
+    "commission",
+    commissionVote,
+  );
+  assert.equal(
+    state.cases[0].votes?.[points[0].id]?.votes?.[member.id],
+    "accept",
+  );
+  assert.equal(
+    state.cases[0].votes?.[points[0].id]?.votes?.[otherMember.id],
+    undefined,
+  );
+});
+
+test("preventive-control requests do not pause deadlines or notify applicants about suspension", () => {
+  let state = initialState();
+  const c = state.cases[0];
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  c.status = "accepted";
+  const externalRequest = new FormData();
+  externalRequest.set("recipient", "Экспертная организация");
+  externalRequest.set("date", state.date);
+  externalRequest.set("registrationNumber", "ИСХ-10");
+  externalRequest.set("deliveryPath", "СЭД");
+  state = applyAction(state, c.id, "request-other", "work", externalRequest);
+  assert.equal(state.cases[0].requestPauseStartedAt, undefined);
+  assert.equal(
+    state.notifications.some(
+      (notification) =>
+        notification.caseId === c.id &&
+        notification.recipient === c.org &&
+        /срок рассмотрения/i.test(notification.text),
+    ),
+    false,
+  );
+
+  const requestForm = new FormData();
+  requestForm.set("recipient", "ДВГА по г. Астана");
+  state = applyAction(state, c.id, "request", "work", requestForm);
+  state = applyAction(
+    state,
+    c.id,
+    "send-request-approval",
+    "work",
+    new FormData(),
+  );
+  const approveForm = new FormData();
+  approveForm.set("approved", "on");
+  state = applyAction(state, c.id, "approve-request", "deputy", approveForm);
+  state = applyAction(state, c.id, "sign-request", "director", new FormData());
+
+  const signedCase = state.cases[0];
+  assert.equal(signedCase.requestPauseStartedAt, undefined);
+  assert.equal(
+    state.notifications.some(
+      (notification) =>
+        notification.caseId === c.id &&
+        notification.recipient === c.org &&
+        /срок рассмотрения/i.test(notification.text),
+    ),
+    false,
+  );
+});
+
 test("preventive-control meeting records commission votes without a meeting certificate", () => {
   let state = initialState();
   const c = state.cases[0];

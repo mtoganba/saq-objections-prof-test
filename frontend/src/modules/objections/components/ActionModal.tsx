@@ -1149,8 +1149,14 @@ export default function ActionModal({
             <div className="request-modal-details">
               <div>
                 <span>Автор</span>
-                <b>Исполнитель ДАВГА</b>
+                <b>{preventiveCase ? "Секретарь комиссии" : "Исполнитель ДАВГА"}</b>
               </div>
+              {preventiveCase && (
+                <div>
+                  <span>Печатная форма</span>
+                  <b>Приложение к материалам обращения</b>
+                </div>
+              )}
             </div>
             {definition.note && <Notice>{definition.note}</Notice>}
             <div className="request-modal-tabs" role="tablist">
@@ -1175,20 +1181,35 @@ export default function ActionModal({
               ))}
             </div>
             <div hidden={requestTab !== "print"} className="request-print-preview">
-              <DocumentContent
-                c={c}
-                kind="certificate"
-                certificatePreview={{
-                  davgaArguments: "",
-                  davgaArgumentsByPoint: Object.fromEntries(
-                    disputed(c).map((point) => [
-                      point.id,
-                      values[`davgaArguments_${point.id}`] || "",
-                    ]),
-                  ),
-                  memberPositions: [],
-                }}
-              />
+              {preventiveCase ? (
+                <DocumentContent
+                  c={{
+                    ...c,
+                    analysisAppendixArgumentsByPoint: Object.fromEntries(
+                      disputed(c).map((point) => [
+                        point.id,
+                        values[`analysisAppendixArguments_${point.id}`] || "",
+                      ]),
+                    ),
+                  }}
+                  kind="analysis-appendix"
+                />
+              ) : (
+                <DocumentContent
+                  c={c}
+                  kind="certificate"
+                  certificatePreview={{
+                    davgaArguments: "",
+                    davgaArgumentsByPoint: Object.fromEntries(
+                      disputed(c).map((point) => [
+                        point.id,
+                        values[`davgaArguments_${point.id}`] || "",
+                      ]),
+                    ),
+                    memberPositions: [],
+                  }}
+                />
+              )}
             </div>
           </>
         ) : action === "edit-certificate" ? (

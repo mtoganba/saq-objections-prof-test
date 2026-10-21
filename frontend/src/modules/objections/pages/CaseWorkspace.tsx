@@ -1581,6 +1581,54 @@ export default function CaseWorkspace({
                           </section>
                         ) : null;
                       })()}
+                      {(() => {
+                        const appendices = c.documents
+                          .filter(
+                            (document) =>
+                              document.kind === "analysis-appendix",
+                          )
+                          .slice()
+                          .reverse();
+                        return appendices.length ? (
+                          <section className="request-documents-section">
+                            <h4>Приложение к материалам обращения</h4>
+                            <div className="request-documents-list">
+                              {appendices.map((appendix, index) => (
+                                <div
+                                  className="request-document-row"
+                                  key={`${appendix.name}-${appendix.date}-${index}`}
+                                >
+                                  <span>{appendix.name}</span>
+                                  <div className="request-document-actions">
+                                    <Button
+                                      onClick={() =>
+                                        onDocument(appendix.kind, appendix)
+                                      }
+                                    >
+                                      Просмотр
+                                    </Button>
+                                    <Button
+                                      onClick={() =>
+                                        downloadFile(
+                                          `${c.id}-${appendix.name}.doc`,
+                                          wordDocumentHtml({
+                                            c,
+                                            kind: appendix.kind,
+                                            document: appendix,
+                                          }),
+                                          "application/msword",
+                                        )
+                                      }
+                                    >
+                                      Скачать Word
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        ) : null;
+                      })()}
                       {[
                         "demo-superuser",
                         "work",

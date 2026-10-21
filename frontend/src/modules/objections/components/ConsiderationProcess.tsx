@@ -604,13 +604,20 @@ export default function ConsiderationProcess({
   hideStages?: boolean;
 }) {
   const next = nextAction(c, role);
+  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
   const pendingRequestActions =
     next?.action === "approve-request"
       ? c.requests.filter((request) => !request.sent && !request.approved)
       : next?.action === "sign-request"
         ? c.requests.filter((request) => request.approved && !request.sent)
         : [];
-  const stages = OBJECTION_STAGES;
+  const stages = preventiveCase
+    ? OBJECTION_STAGES.map((stage) =>
+        stage.label === "Анализ обращения"
+          ? { ...stage, description: "Подготовка приложения к материалам комиссии" }
+          : stage,
+      )
+    : OBJECTION_STAGES;
   const currentStatus = c.status === "paused" ? c.resumeStatus : c.status;
   const inRequestFormationStage = stages[1].statuses.includes(
     currentStatus ?? c.status,
@@ -651,7 +658,6 @@ export default function ConsiderationProcess({
       : next
         ? ROLES[next.role]
         : "";
-  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
   const manualCommissionVotingAvailable =
     role === "work" && preventiveCase && c.status === "commission_voting";
   const meetingCertificateAvailable =
@@ -670,7 +676,14 @@ export default function ConsiderationProcess({
       c.status === "commission_members" ||
       (c.status === "commission_voting" && !commissionMemberCanVote));
   const currentRequestSubstep = requestSubstep(c.status);
-  const currentAnalysisSubstep = analysisSubstep(c.status);
+  const currentAnalysisSubstep = preventiveCase
+    ? c.status === "materials"
+      ? 0
+      : null
+    : analysisSubstep(c.status);
+  const analysisSubsteps = preventiveCase
+    ? ["Сформировать приложение"]
+    : ANALYSIS_SUBSTEPS;
   const currentDecisionSubstep = decisionSubstep(c.status);
   const currentExecutionSubstep = executionSubstep(c.status);
   const additionalRequestRoute =
@@ -700,7 +713,11 @@ export default function ConsiderationProcess({
         <>
           <div className="section-heading">
             <h3>Процесс рассмотрения</h3>
-            <span className="badge blue">{STATUS[c.status]}</span>
+            <span className="badge blue">
+              {preventiveCase && c.status === "materials"
+                ? "Формирование приложения"
+                : STATUS[c.status]}
+            </span>
           </div>
           <ol className="consideration-stages" aria-label="Этапы рассмотрения">
             {stages.map((stage, index) => {
@@ -777,7 +794,7 @@ export default function ConsiderationProcess({
               className="process-substeps"
               aria-label="Шаги этапа анализа обращения"
             >
-              {ANALYSIS_SUBSTEPS.map((label, index) => (
+              {analysisSubsteps.map((label, index) => (
                 <li
                   key={label}
                   aria-current={

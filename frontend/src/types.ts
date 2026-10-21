@@ -316,6 +316,8 @@ export interface CaseDocument {
     requests?: CaseRequest[];
     /** Версии дополнительных доводов, представленных на заслушивании. */
     hearingSupplements?: HearingSupplement[];
+    /** Доводы для приложения по профилактическому контролю на момент печати. */
+    analysisAppendixArgumentsByPoint?: Record<string, string>;
   };
 }
 
@@ -589,6 +591,8 @@ export interface ObjectionCase {
   requestDrafts?: Partial<Record<RequestDraftKind, RequestDraft>>;
   /** Черновик справки до её формирования и направления на согласование. */
   analysisDraft?: RequestDraft;
+  /** Доводы секретаря комиссии для приложения по профилактическому контролю. */
+  analysisAppendixArgumentsByPoint?: Record<string, string>;
   members: CommissionMember[];
   history: HistoryEvent[];
   screening?: string;

@@ -873,6 +873,19 @@
 .appendix-template td:nth-child(4) {
   width: 41%;
 }
+.analysis-appendix-template h2 {
+  margin: 0 0 24px;
+  font-size: 18px;
+  text-align: center;
+}
+.analysis-appendix-template th:nth-child(2),
+.analysis-appendix-template td:nth-child(2) {
+  width: 32%;
+}
+.analysis-appendix-template th:nth-child(3),
+.analysis-appendix-template td:nth-child(3) {
+  width: 63%;
+}
 .request-documents-list {
   display: grid;
   gap: 8px;
