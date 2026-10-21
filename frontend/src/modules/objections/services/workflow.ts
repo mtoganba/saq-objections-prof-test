@@ -1315,7 +1315,7 @@ export function applyAction(
       const chairId = presidingChairId(selectedMembers);
       if (!chairId)
         throw new Error(
-          "В состав заседания включите Вице-министра либо Директора ДАВГА",
+          "В состав заседания включите председательствующего Турегельдиева А.Р.",
         );
       selectedMembers.forEach((member) => {
         member.isChair = member.id === chairId;
@@ -1342,7 +1342,7 @@ export function applyAction(
       const chairId = presidingChairId(c.members);
       if (!chairId)
         throw new Error(
-          "Для проведения голосования должен присутствовать Вице-министр или Директор ДАВГА",
+          "Для проведения голосования должен присутствовать председательствующий Турегельдиев А.Р.",
         );
       const voteEntries: Array<{
         point: ReturnType<typeof disputed>[number];
@@ -1458,7 +1458,7 @@ export function applyAction(
       const chairId = presidingChairId(c.members);
       if (!chairId)
         throw new Error(
-          "Для заполнения справки должен присутствовать Вице-министр или Директор ДАВГА",
+          "Для заполнения справки должен присутствовать председательствующий Турегельдиев А.Р.",
         );
 
       c.votes ||= {};
@@ -2031,7 +2031,7 @@ export function applyAction(
         const chairId = presidingChairId(c.members);
         if (!chairId)
           throw new Error(
-            "Для проведения голосования должен присутствовать Вице-министр или Директор ДАВГА",
+            "Для проведения голосования должен присутствовать председательствующий Турегельдиев А.Р.",
           );
         const outcome = pointOutcomeFromVotes(memberVotes, chairId);
         if (!outcome)

@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { initialState } from "../../../api/objectionsRepository";
+import {
+  createDemoRepository,
+  initialState,
+  STORAGE_KEY,
+} from "../../../api/objectionsRepository";
 import { COMMISSION_ATTENDANCE_MEMBERS } from "../../../data/objections";
 import type { ObjectionCase } from "../../../types";
 import {
@@ -43,6 +47,57 @@ function preventiveCase(appealType: string): ObjectionCase {
   };
   return c;
 }
+
+test("demo seed replaces the removed examples with the requested act objection", () => {
+  const state = initialState();
+  assert.equal(state.cases.length, 1);
+  const c = state.cases[0];
+  assert.equal(c.id, "В-2026-001");
+  assert.equal(c.appealType, PREVENTIVE_CONTROL_ACT_OBJECTION);
+  assert.equal(c.org, 'Аудиторская организация "Auditor group"');
+  assert.equal(c.bin, "001002003004");
+  assert.equal(c.document.number, "57");
+  assert.equal(c.document.date, "2026-09-01");
+  assert.deepEqual(
+    c.issues.filter((point) => point.disputed).map((point) => point.number),
+    ["4", "8"],
+  );
+  assert.deepEqual(
+    COMMISSION_ATTENDANCE_MEMBERS.map((member) => member.name),
+    [
+      "Заместитель Председателя КВГА МФ РК - Турегельдиев А.Р.",
+      "Руководитель УАО КВГА МФ РК - Букаев Ж.Б.",
+      "Руководитель УАС КВГА МФ РК - Ашанова А.К.",
+      "И.о. руководителя ЮУ КВГА МФ РК - Казиханова А.Б.",
+      "И.о. руководителя УКСБУ КВГА МФ РК - Дюсенгалиева А.Ж.",
+    ],
+  );
+});
+
+test("local storage migration removes old IDs and replaces the old В-2026-001", () => {
+  const saved = initialState();
+  saved.version = 12;
+  const oldAudit = structuredClone(saved.cases[0]);
+  oldAudit.appealType = "Возражение на аудиторский отчет";
+  const oldStatement = structuredClone(oldAudit);
+  oldStatement.id = "З-2026-002";
+  const oldSaqStatement = structuredClone(oldAudit);
+  oldSaqStatement.id = "З-2026-003";
+  saved.cases = [oldAudit, oldStatement, oldSaqStatement];
+  const storage = new Map<string, string>([
+    [STORAGE_KEY, JSON.stringify(saved)],
+  ]);
+  const migrated = createDemoRepository({
+    getItem: (key) => storage.get(key) || null,
+    setItem: (key, value) => storage.set(key, value),
+  }).load();
+
+  assert.deepEqual(
+    migrated.cases.map((item) => item.id),
+    ["В-2026-001"],
+  );
+  assert.equal(migrated.cases[0].appealType, PREVENTIVE_CONTROL_ACT_OBJECTION);
+});
 
 test("creation form offers the two preventive-control objections and removes procurement portal", () => {
   const html = renderToStaticMarkup(
@@ -140,7 +195,7 @@ test("preventive-control meeting records commission votes without a meeting cert
   c.certificate = null;
   c.documents = [];
 
-  const attendees = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7);
+  const attendees = COMMISSION_ATTENDANCE_MEMBERS;
   const attendanceForm = new FormData();
   attendees.forEach((member) => attendanceForm.set(`attendee_${member.id}`, "on"));
   state = applyAction(
@@ -205,10 +260,10 @@ test("preventive-control meeting records commission votes without a meeting cert
 test("commission vote screen exposes the full member and question matrix", () => {
   const c = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
   c.status = "commission_voting";
-  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.map((member) => ({
     ...member,
     present: true,
-    isChair: member.id === "kenbeil-dm",
+    isChair: member.id === "turegeldiev-ar",
     recused: false,
     reason: "",
   }));
@@ -225,9 +280,9 @@ test("commission vote screen exposes the full member and question matrix", () =>
 
   assert.match(html, /Фамилия, инициалы/);
   assert.match(html, /Описание оспариваемого вопроса/);
-  assert.match(html, /Урхумбаева Т\.Ж\./);
-  assert.match(html, /commissionVote_[^" ]+_alieva-at/);
-  assert.match(html, /commissionReason_[^" ]+_alieva-at/);
+  assert.match(html, /Букаев Ж\.Б\./);
+  assert.match(html, /commissionVote_[^" ]+_bukaev-zhb/);
+  assert.match(html, /commissionReason_[^" ]+_bukaev-zhb/);
   assert.doesNotMatch(html, /Выберите ФИО/);
 });
 
@@ -236,10 +291,10 @@ test("commission members can record only their own open rows", () => {
   const c = state.cases[0];
   c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
   c.status = "commission_voting";
-  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.map((member) => ({
     ...member,
     present: true,
-    isChair: member.id === "kenbeil-dm",
+    isChair: member.id === "turegeldiev-ar",
     recused: false,
     reason: "",
   }));
@@ -266,10 +321,10 @@ test("commission members can record only their own open rows", () => {
 test("preventive-control meeting shows manual voting without a certificate action", () => {
   const c = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
   c.status = "commission_voting";
-  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.map((member) => ({
     ...member,
     present: true,
-    isChair: member.id === "kenbeil-dm",
+    isChair: member.id === "turegeldiev-ar",
     recused: false,
     reason: "",
   }));

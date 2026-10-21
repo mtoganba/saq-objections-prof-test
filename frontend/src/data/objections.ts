@@ -4,32 +4,39 @@ import type {
   NewCaseInput,
   ObjectionCase,
 } from "../types";
+import { PREVENTIVE_CONTROL_ACT_OBJECTION } from "../modules/objections/appealTypes";
 
 export const COMMISSION_ATTENDANCE_MEMBERS: CommissionAttendanceMember[] = [
-  { id: "alieva-at", name: "Директор ДМБУА Алиева А.Т." },
-  { id: "urkhumbayeva-tzh", name: "Руководитель управления ДМБУА Урхумбаева Т.Ж." },
-  { id: "abetova-ku", name: "Заместитель директора ДЮС Абетова К.У." },
-  { id: "kenbeil-dm", name: "Вице-министр Кенбеил Д.М." },
-  { id: "kurenbek-shb", name: "Директор ДАВГА Күреңбек тегі Ш.Б." },
-  { id: "akhmetov-rk", name: "Заместитель Председателя КВГА Ахметов Р.К." },
-  { id: "turgeldiev-ra", name: "Заместитель председателя КВГА Тургелдиев Р.А." },
-  { id: "seitov-et", name: "Директор ДЗГЗ Сеитов Е.Т." },
-  { id: "kaskenova-i", name: "Руководитель управления ДЗГЗ Каскенова И." },
-  { id: "umertayev-bk", name: "Представитель НПО «Атамекен» Умертаев Б.К." },
-  { id: "gusmanova-ab", name: "Представитель АО «ЩЮЛ Застройщики» Гусманова А.Б." },
-  { id: "ten-vs", name: "Представитель АО «ОЮЛ застройщиков» ТЭН В.С." },
-  { id: "mikrokov-v", name: "Представитель ОЮЛ «Микроков» В." },
+  {
+    id: "turegeldiev-ar",
+    name: "Заместитель Председателя КВГА МФ РК - Турегельдиев А.Р.",
+  },
+  {
+    id: "bukaev-zhb",
+    name: "Руководитель УАО КВГА МФ РК - Букаев Ж.Б.",
+  },
+  {
+    id: "ashanova-ak",
+    name: "Руководитель УАС КВГА МФ РК - Ашанова А.К.",
+  },
+  {
+    id: "kazikhanova-ab",
+    name: "И.о. руководителя ЮУ КВГА МФ РК - Казиханова А.Б.",
+  },
+  {
+    id: "dyusengalieva-azh",
+    name: "И.о. руководителя УКСБУ КВГА МФ РК - Дюсенгалиева А.Ж.",
+  },
 ];
 export function members(): CommissionMember[] {
-  return [
-    { id: "chair", name: "Председатель комиссии" },
-    { id: "deputy", name: "Заместитель председателя" },
-    { id: "member1", name: "Член комиссии № 1" },
-    { id: "member2", name: "Член комиссии № 2" },
-    { id: "member3", name: "Член комиссии № 3" },
-    { id: "member4", name: "Представитель НПП «Атамекен»" },
-    { id: "member5", name: "Представитель отраслевой ассоциации" },
-  ].map((m) => ({ ...m, present: true, recused: false, reason: "" }));
+  return COMMISSION_ATTENDANCE_MEMBERS.map((member, index) => ({
+    id: index === 0 ? "chair" : "member" + index,
+    name: member.name,
+    present: true,
+    isChair: index === 0,
+    recused: false,
+    reason: "",
+  }));
 }
 export function makeCase(c: NewCaseInput): ObjectionCase {
   const receivedViaSaq = c.channel === "SAQ";
@@ -165,6 +172,122 @@ export function sharedAuditObjection(): ObjectionCase {
       actor: "Заявитель",
       title: "Добавлены доказательства по оспариваемым пунктам",
       text: "Доказательства.docx",
+    },
+  );
+  return c;
+}
+
+/** Общее тестовое возражение на акт о результате профилактического контроля. */
+export function sharedPreventiveControlObjection(): ObjectionCase {
+  const c = makeCase({
+    id: "В-2026-001",
+    type: "control",
+    appealType: PREVENTIVE_CONTROL_ACT_OBJECTION,
+    appealNumber: "В-2026-001",
+    appealDate: "2026-09-08",
+    org: 'Аудиторская организация "Auditor group"',
+    bin: "001002003004",
+    applicantIdentifierType: "БИН",
+    address: "город Астана",
+    applicant: "",
+    registered: "2026-09-08",
+    filed: "2026-09-08",
+    channel: "SAQ",
+    issuer: "ДВГА по г. Астана",
+    authority: "Апелляционная комиссия при Министерстве финансов РК",
+    document: {
+      number: "57",
+      date: "2026-09-01",
+      received: "2026-09-08",
+      name: "Акт о результате профилактического контроля",
+    },
+    agendaDetails: {
+      auditObjectName: 'Аудиторская организация "Auditor group"',
+      auditObjectBin: "001002003004",
+      applicantIsAuditObjectRepresentative: false,
+    },
+    amount: 0,
+    request: "О внеплановой проверке",
+    issues: [
+      {
+        id: "preventive-control-point-4",
+        number: "4",
+        title: "Признать акт недействительным",
+        finding: "",
+        argument: [
+          "1) Признать выводы Акта внеплановой проверки №57 от 02.06.2026г№ необоснованными:",
+          "2) Исключить из Акта выводы о составлении заведомо недостоверных аудиторских отчетов:",
+          "3) Исключить выводы о нарушении МСА 240,МСА 260, принципа объективности и Кодекса профессиональной этики аудиторов:",
+          "4) Отменить Предписание №57 от 2 июня 2026г. как основанное на необоснованных выводах акта проверки:",
+          "5) Прекратить дальнейшее производство по вопросу привлечения ТОО «Астана Аудит Сервис» и аудитора к ответственности по обстоятельствам изложенным в Акте проверки:",
+          "6) Провести служебную и правовую оценку действии должностного лица ДВГА по городу Шымкент, осуществлявшего проверку и составившего акт, в части соблюдения принципов объективности, беспристрастности, достаточности доказательств и недопустимости формулирования выводов, не подтвержденных документально установленными обстоятельствами:",
+          "7) Проверить обоснованность использования в Акте проверки формулировок, содержащие выводы о якобы умышленных действиях аудитора, составлении «заведомо недостоверных аудиторских отчетов», сознательном игнорировании обстоятельств, а также иных оценочных суждений, предполагающих наличие субъективной стороны поведения аудитора, без представления доказательств таких обстоятельств:",
+          "8) Дать правовую оценку соответствия выводов Акта проверки требованиям Предпринимательского кодекса РК, принципам законности, объективности и обоснованности государственного контроля, а также требованиям к достаточности доказательственной базы при вынесении выводов нарушения:",
+          "9) В случае установления нарушений при проведении проверки и составлении акта №57 от 2 июня 2026г. принять меры реагирования, предусмотренные законодательством РК.",
+        ].join("\n\n"),
+        evidence: "Доказательства 4.docx",
+        amount: 0,
+        disputed: true,
+      },
+      {
+        id: "preventive-control-point-8",
+        number: "8",
+        title: "Тест",
+        finding: "",
+        argument: "Тест",
+        evidence: "Доказательства 8.docx",
+        amount: 0,
+        disputed: true,
+      },
+    ],
+  });
+  c.documents = [
+    {
+      name: "Требования заявителя(1).docx",
+      filename: "Требования заявителя(1).docx",
+      kind: "attachment",
+      text: "Требования заявителя",
+      author: "Заявитель",
+      date: "2026-09-08",
+      dataUrl: "/test-documents/preventive-control-requirements.docx",
+    },
+    {
+      name: "Доказательства 4.docx",
+      filename: "Доказательства 4.docx",
+      kind: "attachment",
+      text: "Доказательства по оспариваемому пункту 4",
+      author: "Заявитель",
+      date: "2026-09-08",
+      dataUrl: "/test-documents/preventive-control-evidence-4.docx",
+    },
+    {
+      name: "Доказательства 8.docx",
+      filename: "Доказательства 8.docx",
+      kind: "attachment",
+      text: "Доказательства по оспариваемому пункту 8",
+      author: "Заявитель",
+      date: "2026-09-08",
+      dataUrl: "/test-documents/preventive-control-evidence-8.docx",
+    },
+  ];
+  c.history.push(
+    {
+      date: "2026-09-08",
+      actor: "Заявитель",
+      title: "Добавлены требования заявителя",
+      text: "Требования заявителя(1).docx",
+    },
+    {
+      date: "2026-09-08",
+      actor: "Заявитель",
+      title: "Добавлены доказательства по оспариваемому пункту 4",
+      text: "Доказательства 4.docx",
+    },
+    {
+      date: "2026-09-08",
+      actor: "Заявитель",
+      title: "Добавлены доказательства по оспариваемому пункту 8",
+      text: "Доказательства 8.docx",
     },
   );
   return c;
@@ -308,9 +431,5 @@ export function sharedSaqStatementApplication(): ObjectionCase {
 }
 
 export function seed(): ObjectionCase[] {
-  return [
-    sharedAuditObjection(),
-    sharedStatementApplication(),
-    sharedSaqStatementApplication(),
-  ];
+  return [sharedPreventiveControlObjection()];
 }

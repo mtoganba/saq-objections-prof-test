@@ -12,6 +12,9 @@ import {
   COMMISSION_ATTENDANCE_MEMBERS,
   makeCase,
   members,
+  sharedAuditObjection,
+  sharedSaqStatementApplication,
+  sharedStatementApplication,
 } from "../../../data/objections";
 import type { Action, DemoState, Role } from "../../../types";
 import {
@@ -63,8 +66,19 @@ import {
   requestTemplateIntro,
 } from "../services/appealTemplates";
 
+function workflowTestState(): DemoState {
+  return {
+    ...initialState(),
+    cases: [
+      sharedAuditObjection(),
+      sharedStatementApplication(),
+      sharedSaqStatementApplication(),
+    ],
+  };
+}
+
 function harness(index = 0) {
-  let state = initialState();
+  let state = workflowTestState();
   const id = state.cases[index].id;
   return {
     get state() {
@@ -217,23 +231,16 @@ test("по профилактическому контролю материал�
     COMMISSION_ATTENDANCE_MEMBERS.length,
   );
 
-  const selectedIds = [
-    "kenbeil-dm",
-    ...COMMISSION_ATTENDANCE_MEMBERS.filter(
-      (member) => member.id !== "kenbeil-dm",
-    )
-      .slice(0, 6)
-      .map((member) => member.id),
-  ];
+  const selectedIds = COMMISSION_ATTENDANCE_MEMBERS.map((member) => member.id);
   const attendees = Object.fromEntries(
     selectedIds.map((memberId) => [`attendee_${memberId}`, "on"]),
   );
   const shortAttendees = Object.fromEntries(
-    selectedIds.slice(0, 6).map((memberId) => [`attendee_${memberId}`, "on"]),
+    selectedIds.slice(0, 2).map((memberId) => [`attendee_${memberId}`, "on"]),
   );
   assert.throws(
     () => h.run("select-preventive-attendees", "work", shortAttendees),
-    /не менее 7 членов/,
+    /не менее 3 членов/,
   );
   h.run("select-preventive-attendees", "work", attendees);
   assert.equal(h.c.status, "commission_voting");
@@ -243,12 +250,12 @@ test("по профилактическому контролю материал�
       selectedIds.includes(member.id),
     ).map((member) => member.id),
   );
-  assert.ok(h.c.members.some((member) => member.id === "kenbeil-dm" && member.isChair));
+  assert.ok(h.c.members.some((member) => member.id === "turegeldiev-ar" && member.isChair));
   assert.equal(nextAction(h.c, "commission")?.action, "commission-vote");
 });
 
 test("три исходных дела: разные сроки и перенос окончания месяца", () => {
-  const state = initialState();
+  const state = workflowTestState();
   assert.deepEqual(state.cases.slice(0, 3).map(filingDeadline), [
     "2026-09-10",
     "2026-09-16",
@@ -1449,7 +1456,7 @@ test("кворум, отсутствие председательствующе�
   assert.throws(
     () =>
       evaluateVotes(
-        composition.map((m, i) => ({ ...m, present: i < 3 })),
+        composition.map((m, i) => ({ ...m, present: i < 2 })),
         {},
       ),
     /кворума/,
@@ -1460,39 +1467,36 @@ test("кворум, отсутствие председательствующе�
         composition.map((m, i) => ({ ...m, present: i >= 2 })),
         {},
       ),
-    /председателя/,
+    /председательствующего/,
   );
   const four = composition.map((m, i) => ({ ...m, present: i < 4 }));
   assert.equal(
     evaluateVotes(four, {
       chair: "yes",
-      deputy: "no",
       member1: "yes",
       member2: "no",
+      member3: "no",
     }).approved,
     true,
   );
   assert.equal(
     evaluateVotes(four, {
       chair: "no",
-      deputy: "yes",
       member1: "yes",
       member2: "no",
+      member3: "yes",
     }).approved,
     false,
   );
   const recused = composition.map((m, i) => ({
     ...m,
-    recused: i >= 5,
-    reason: i >= 5 ? "Конфликт" : "",
+    recused: i >= 2,
+    reason: i >= 2 ? "Конфликт" : "",
   }));
   assert.equal(
     evaluateVotes(recused, {
-      chair: "yes",
-      deputy: "yes",
+      chair: "no",
       member1: "yes",
-      member2: "no",
-      member3: "no",
     }).approved,
     false,
   );
@@ -1526,11 +1530,11 @@ test("результаты голосования по пунктам и обр�
   assert.equal(
     pointOutcomeFromVotes(
       {
-        "kenbeil-dm": "reject",
-        "abetova-ku": "partial",
-        "alieva-at": "accept",
+        "turegeldiev-ar": "reject",
+        "bukaev-zhb": "partial",
+        "ashanova-ak": "accept",
       },
-      "kenbeil-dm",
+      "turegeldiev-ar",
     ),
     "reject",
   );
@@ -1673,6 +1677,7 @@ test("совместимость сохранения, прямые ссылки
 test("сохранённый выбор участников АК переводится на голосование", () => {
   const legacy = initialState();
   legacy.version = 1;
+  legacy.cases[0].id = "legacy-case";
   legacy.cases[0].status = "commission_members";
   const storage = new Map<string, string>([
     [STORAGE_KEY, JSON.stringify(legacy)],
@@ -1681,11 +1686,14 @@ test("сохранённый выбор участников АК перевод
     getItem: (key) => storage.get(key) || null,
     setItem: (key, value) => storage.set(key, value),
   }).load();
-  assert.equal(state.version, 9);
+  assert.equal(state.version, 13);
   assert.deepEqual(state.agendas, []);
   assert.deepEqual(state.notifications, []);
   assert.deepEqual(state.attendancePolls, []);
-  assert.equal(state.cases[0].status, "commission_voting");
+  assert.equal(
+    state.cases.find((item) => item.id === "legacy-case")?.status,
+    "commission_voting",
+  );
 });
 
 test("обращение из SAQ направляется директору, затем исполнителю рабочего органа", () => {

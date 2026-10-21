@@ -785,26 +785,13 @@ export function DocumentContent({
       !protocolPreview && snapshot.meeting?.signed ? meeting?.number : "";
     const members = protocolPreview?.members || snapshot.members;
     const presentMembers = members.filter((member) => member.present);
-    const viceMinister = presentMembers.find(
-      (member) => member.id === "kenbeil-dm",
+    const presidingMember = presentMembers.find(
+      (member) => member.id === presidingChairId(presentMembers),
     );
-    const davgaDirector = presentMembers.find(
-      (member) => member.id === "kurenbek-shb",
-    );
-    const presidingMember =
-      viceMinister ||
-      davgaDirector ||
-      presentMembers.find(
-        (member) => member.id === presidingChairId(presentMembers),
-      );
     const commissionMembers = presentMembers.filter(
       (member) => member.id !== presidingMember?.id,
     );
-    const presidingLabel = viceMinister
-      ? "Председатель АК"
-      : davgaDirector
-        ? "Заместитель председателя АК"
-        : "Председатель АК";
+    const presidingLabel = "Председатель АК";
     const secretaryName =
       snapshot.assignee && snapshot.assignee !== "Не назначен"
         ? snapshot.assignee

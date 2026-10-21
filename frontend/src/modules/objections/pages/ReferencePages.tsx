@@ -470,8 +470,7 @@ export function SessionsPage({
         />
         <Notice>
           Опрос направляется автоматически при создании заседания. Председатель
-          АК — Вице-министр; при его отсутствии председательствует Директор
-          ДАВГА.
+          АК — Заместитель Председателя КВГА МФ РК Турегельдиев А.Р.
         </Notice>
         {selectedMeeting.postponedCaseIds?.length ? (
           <Notice tone="amber">
@@ -515,18 +514,10 @@ export function SessionsPage({
               {commissionMembers.map((member) => {
                 const response = selectedPoll?.responses[member.id] || "pending";
                 const changed = selectedPoll?.manualResponseChanges?.[member.id];
-                const isViceMinister = member.id === "kenbeil-dm";
-                const isDavgaDirector = member.id === "kurenbek-shb";
                 const isChair = selectedPoll?.chairId === member.id;
                 const chairLabel = isChair
-                  ? isViceMinister
-                    ? "Председатель АК"
-                    : "И.О. Председателя АК"
-                  : isViceMinister
-                    ? "Председатель АК"
-                    : isDavgaDirector
-                      ? "Директор ДАВГА"
-                      : "Член АК";
+                  ? "Председатель АК"
+                  : "Член АК";
                 const responseLabel =
                   response === "yes"
                     ? "Будет присутствовать"

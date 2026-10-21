@@ -5,21 +5,17 @@ import type {
   VoteResult,
 } from "../../../types";
 
-const VICE_MINISTER_ID = "kenbeil-dm";
-const DAVGA_DIRECTOR_ID = "kurenbek-shb";
+const PRESIDING_CHAIR_ID = "turegeldiev-ar";
 
 /**
- * Председательствует вице-министр, а при его отсутствии — директор ДАВГА.
- * Признак isChair оставлен только для старых данных, где состав заседания
- * был сохранён до введения опроса о присутствии.
+ * Председательствует Турегельдиев А.Р. Признак isChair оставлен для старых
+ * сохранённых заседаний и тестовых записей.
  */
 export function presidingChairId(
   members: Pick<CommissionMember, "id" | "present" | "isChair">[],
 ) {
   return (
-    members.find((member) => member.id === VICE_MINISTER_ID && member.present)
-      ?.id ||
-    members.find((member) => member.id === DAVGA_DIRECTOR_ID && member.present)
+    members.find((member) => member.id === PRESIDING_CHAIR_ID && member.present)
       ?.id ||
     members.find((member) => member.id === "chair" && member.present)?.id ||
     members.find((member) => member.isChair && member.present)?.id
@@ -89,18 +85,15 @@ export function evaluateVotes(
   votes: Record<string, string>,
 ): VoteResult {
   const present = members.filter((m) => m.present);
-  const chair =
-    present.find((m) => m.id === "chair" && !m.recused) ||
-    present.find((m) => m.id === "deputy" && !m.recused);
-  if (members.length < 7)
-    throw Error("В комиссии должно быть не менее 7 членов");
+  const eligible = present.filter((m) => !m.recused);
+  const chairId = presidingChairId(eligible);
+  const chair = eligible.find((member) => member.id === chairId);
   if (present.length < Math.ceil(members.length / 2))
     throw Error("Нет кворума: необходимо не менее половины состава комиссии");
   if (!chair)
     throw Error(
-      "Необходимо участие председателя либо замещающего его заместителя",
+      "Необходимо участие председательствующего Турегельдиева А.Р.",
     );
-  const eligible = present.filter((m) => !m.recused);
   for (const m of eligible)
     if (!["yes", "no"].includes(votes[m.id]))
       throw Error("Зафиксируйте голос каждого участвующего члена комиссии");
@@ -110,7 +103,7 @@ export function evaluateVotes(
     yes,
     no,
     approved:
-      yes > present.length / 2 ||
+      yes > eligible.length / 2 ||
       (yes === no && yes > 0 && votes[chair.id] === "yes"),
     chair: chair.id,
     present: present.length,
