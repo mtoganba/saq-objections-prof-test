@@ -264,24 +264,14 @@ test("по профилактическому контролю материал�
       sent: h.state.date,
     },
   ];
-  h.c.documents.push(
-    {
-      name: "Запрос в ДВГА",
-      kind: "request",
-      text: "Запрос по обращению",
-      date: h.state.date,
-      author: "Секретарь комиссии",
-      requestId: "request-dvga",
-    },
-    {
-      name: "Приложение к запросу в ДВГА",
-      kind: "request-appendix",
-      text: "Приложение по пунктам возражения",
-      date: h.state.date,
-      author: "Секретарь комиссии",
-      requestId: "request-dvga",
-    },
-  );
+  h.c.documents.push({
+    name: "Приложение к запросу в ДВГА",
+    kind: "request-appendix",
+    text: "Приложение по пунктам возражения",
+    date: h.state.date,
+    author: "Секретарь комиссии",
+    requestId: "request-dvga",
+  });
   const secretaryMaterialsHtml = renderToStaticMarkup(
     createElement(CaseWorkspace, {
       c: h.c,
@@ -295,7 +285,7 @@ test("по профилактическому контролю материал�
       onUpload() {},
     }),
   );
-  assert.match(secretaryMaterialsHtml, /Запрос в ДВГА/);
+  assert.match(secretaryMaterialsHtml, /<h4>Запрос в ДВГА<\/h4>/);
   assert.match(secretaryMaterialsHtml, /Приложение к запросу в ДВГА/);
 
   const commissionMaterialsHtml = renderToStaticMarkup(
