@@ -536,6 +536,10 @@ export interface ObjectionCase {
   address: string;
   applicant: string;
   registered: string;
+  /** Официальная дата поступления обращения, от которой считается срок рассмотрения. */
+  intakeDate?: string;
+  /** Способ внесения карточки в SAQ, отдельно от источника обращения. */
+  registrationMethod?: "automatic" | "manual";
   filed: string;
   channel: string;
   issuer: string;
@@ -554,6 +558,8 @@ export interface ObjectionCase {
   issues: ViolationPoint[];
   status: CaseStatus;
   assignee: string;
+  /** Внутренний срок для секретаря; не может быть позже общего срока. */
+  secretaryDeadline?: string;
   extensionDays: number;
   pauseDays: number;
   documents: CaseDocument[];
@@ -637,6 +643,8 @@ export type NewCaseInput = Pick<
   | "address"
   | "applicant"
   | "registered"
+  | "intakeDate"
+  | "registrationMethod"
   | "filed"
   | "channel"
   | "issuer"
@@ -647,7 +655,13 @@ export type NewCaseInput = Pick<
   | "issues"
 > &
   Partial<
-    Pick<ObjectionCase, "procurement" | "affectedParties" | "agendaDetails">
+    Pick<
+      ObjectionCase,
+      | "procurement"
+      | "affectedParties"
+      | "agendaDetails"
+      | "secretaryDeadline"
+    >
   >;
 export interface DemoState {
   version: number;
@@ -671,6 +685,7 @@ export interface Route {
 export type Action =
   | "screen"
   | "assign-work-executor"
+  | "set-secretary-deadline"
   | "request"
   | "request-saq"
   | "request-other"
