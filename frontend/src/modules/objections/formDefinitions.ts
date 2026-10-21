@@ -131,8 +131,8 @@ const RECOMMENDATION_RECIPIENT_OPTIONS = [
 ] as const satisfies FormField["options"];
 
 const WORK_EXECUTOR_OPTIONS = [
-  ["", "Выберите исполнителя"],
-  ["Исполнитель рабочего органа", "Исполнитель рабочего органа"],
+  ["", "Выберите секретаря"],
+  ["Секретарь комиссии", "Секретарь комиссии"],
   ["Главный эксперт ДАВГА", "Главный эксперт ДАВГА"],
   ["Эксперт ДАВГА", "Эксперт ДАВГА"],
 ] as const satisfies FormField["options"];
