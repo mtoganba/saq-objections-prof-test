@@ -6,6 +6,7 @@ import type {
   ApplicantIdentifierType,
   CaseType,
   DemoState,
+  ObjectionCase,
 } from "../../../types";
 import { dateObject } from "../services/deadlines";
 import { required } from "../services/workflow";
@@ -79,6 +80,175 @@ const APPEAL_TYPES = [
   label: string;
   caseType: CaseType;
 }>;
+
+export interface SaqSourceViolationPoint {
+  id: string;
+  code: string;
+  number: string;
+  description: string;
+}
+
+/** Источник документов заявителя. Сейчас это демонстрационные данные; позже
+ * этот список передаётся сюда из модуля профилактического контроля. */
+export interface SaqSourceDocument {
+  id: string;
+  appealType: string;
+  name: string;
+  number: string;
+  date: string;
+  issuer: string;
+  points: SaqSourceViolationPoint[];
+}
+
+export const SAQ_APPLICANT_PROFILE = {
+  name: "АО «Alatau Industry 676»",
+  identifierType: "БИН" as const,
+  identifier: "001002003004",
+  address: "город Астана",
+};
+
+export const SAQ_PREVENTIVE_CONTROL_DOCUMENTS: SaqSourceDocument[] = [
+  {
+    id: "preventive-act-57",
+    appealType: PREVENTIVE_CONTROL_ACT_OBJECTION,
+    name: "Акт о результате проверки",
+    number: "57",
+    date: "2026-09-02",
+    issuer: "ДВГА по г. Астана",
+    points: [
+      {
+        id: "preventive-act-57-point-1",
+        code: "ОПИ-01",
+        number: "1",
+        description:
+          "Выявлено нарушение по предоставлению отчетности в части количества нарушения",
+      },
+      {
+        id: "preventive-act-57-point-2",
+        code: "ОПИ-01",
+        number: "2",
+        description:
+          "Выявлено нарушение по предоставлению отчетности в части количества нарушения 2",
+      },
+      {
+        id: "preventive-act-57-point-3",
+        code: "ОПИ-01",
+        number: "3",
+        description:
+          "Выявлено нарушение по предоставлению отчетности в части количества нарушения 3",
+      },
+    ],
+  },
+];
+
+export function createSaqApplicantObjection({
+  state,
+  sourceDocument,
+  received,
+  summary,
+  requirements,
+  selectedPointIds,
+  pointArguments,
+  attachments = [],
+}: {
+  state: DemoState;
+  sourceDocument: SaqSourceDocument;
+  received: string;
+  summary: string;
+  requirements: string;
+  selectedPointIds: string[];
+  pointArguments: Record<string, string>;
+  attachments?: ObjectionCase["documents"];
+}) {
+  if (!summary.trim()) throw new Error("Заполните краткое описание");
+  if (!requirements.trim()) throw new Error("Заполните требования заявителя");
+  dateObject(received);
+  const selectedPoints = sourceDocument.points.filter((point) =>
+    selectedPointIds.includes(point.id),
+  );
+  if (!selectedPoints.length)
+    throw new Error("Выберите хотя бы один оспариваемый пункт акта");
+  selectedPoints.forEach((point) => {
+    if (!pointArguments[point.id]?.trim())
+      throw new Error(
+        `Заполните довод заявителя по пункту ${point.number}`,
+      );
+  });
+
+  const id = nextCaseNumber(
+    state.cases,
+    sourceDocument.appealType,
+    state.date,
+  );
+  const c = makeCase({
+    id,
+    type: "control",
+    appealType: sourceDocument.appealType,
+    appealNumber: id,
+    appealDate: state.date,
+    org: SAQ_APPLICANT_PROFILE.name,
+    bin: SAQ_APPLICANT_PROFILE.identifier,
+    applicantIdentifierType: SAQ_APPLICANT_PROFILE.identifierType,
+    address: SAQ_APPLICANT_PROFILE.address,
+    applicant: "",
+    registered: state.date,
+    intakeDate: state.date,
+    registrationMethod: "automatic",
+    filed: state.date,
+    channel: "SAQ",
+    issuer: sourceDocument.issuer,
+    authority: "Апелляционная комиссия при Министерстве финансов РК",
+    document: {
+      number: sourceDocument.number,
+      date: sourceDocument.date,
+      received,
+      name: sourceDocument.name,
+    },
+    agendaDetails: {
+      auditObjectName: SAQ_APPLICANT_PROFILE.name,
+      auditObjectBin: SAQ_APPLICANT_PROFILE.identifier,
+      applicantIsAuditObjectRepresentative: false,
+    },
+    amount: 0,
+    request: summary.trim(),
+    issues: selectedPoints.map((point) => ({
+      id: point.id,
+      number: point.number,
+      title: `${point.code} — пункт нарушения № ${point.number}`,
+      finding: point.description,
+      argument: pointArguments[point.id].trim(),
+      evidence: "",
+      amount: 0,
+      disputed: true,
+    })),
+  });
+  c.submittedViaSaqApplicant = true;
+  c.sourceDocumentId = sourceDocument.id;
+  c.applicantRequirements = requirements.trim();
+  c.documents = attachments;
+  c.history.push({
+    date: state.date,
+    actor: "Заявитель",
+    title: "Возражение подано через кабинет SAQ",
+    text: `Выбран документ «${sourceDocument.name}» №${sourceDocument.number}. Оспариваемые пункты: ${selectedPoints.map((point) => point.number).join(", ")}.`,
+  });
+  const next = {
+    ...state,
+    cases: [...state.cases, c],
+    notifications: [
+      ...state.notifications,
+      {
+        id: `notification-${id}-saq-submission`,
+        caseId: id,
+        recipient: ROLES.director,
+        date: state.date,
+        read: false,
+        text: `Новое возражение ${id} поступило через кабинет SAQ. Выберите секретаря комиссии.`,
+      },
+    ],
+  };
+  return { state: next, caseId: id };
+}
 
 export default function NewCaseModal({
   state,
@@ -1231,6 +1401,325 @@ export default function NewCaseModal({
           <Button onClick={onClose}>Отмена</Button>
           <Button primary type="submit">
             Зарегистрировать
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+function saqDisplayDate(date: string) {
+  const [year, month, day] = date.split("-");
+  return day && month && year ? `${day}.${month}.${year}` : date;
+}
+
+export function SaqObjectionSubmissionModal({
+  state,
+  onSave,
+  onClose,
+  sourceDocuments = SAQ_PREVENTIVE_CONTROL_DOCUMENTS,
+}: {
+  state: DemoState;
+  onSave: (state: DemoState, caseId: string) => void;
+  onClose: () => void;
+  /** Позволяет передать сюда записи из модуля профилактического контроля. */
+  sourceDocuments?: SaqSourceDocument[];
+}) {
+  const [appealType, setAppealType] = useState(
+    PREVENTIVE_CONTROL_ACT_OBJECTION,
+  );
+  const [selectedDocumentId, setSelectedDocumentId] = useState(
+    () =>
+      sourceDocuments.find(
+        (document) =>
+          document.appealType === PREVENTIVE_CONTROL_ACT_OBJECTION,
+      )?.id ?? "",
+  );
+  const [selectedPointIds, setSelectedPointIds] = useState<string[]>([]);
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const sourceDocumentsForType = sourceDocuments.filter(
+    (document) => document.appealType === appealType,
+  );
+  const selectedDocument = sourceDocumentsForType.find(
+    (document) => document.id === selectedDocumentId,
+  );
+  const isAct = appealType === PREVENTIVE_CONTROL_ACT_OBJECTION;
+  const documentLabel = isAct ? "акт о результате" : "предписание";
+
+  return (
+    <Modal title="Подать возражение" onClose={onClose} wide>
+      <form
+        onSubmit={async (event) => {
+          event.preventDefault();
+          setError("");
+          setIsSubmitting(true);
+          try {
+            const form = new FormData(event.currentTarget);
+            const get = (name: string, label: string) =>
+              required(form, name, label);
+            if (!selectedDocument)
+              throw new Error(`Выберите доступный ${documentLabel}`);
+            const selectedPointArguments = Object.fromEntries(
+              selectedPointIds.map((pointId) => [
+                pointId,
+                get(
+                  `argument_${pointId}`,
+                  `Довод заявителя по пункту ${selectedDocument.points.find((point) => point.id === pointId)?.number ?? ""}`,
+                ),
+              ]),
+            );
+            const received = get("received", "Дата получения документа");
+            const attachments = await Promise.all(
+              attachmentFiles.map(async (file) => ({
+                name: file.name,
+                filename: file.name,
+                kind: "attachment" as const,
+                text: "Приложение заявителя к возражению",
+                author: "Заявитель",
+                date: state.date,
+                dataUrl: await fileDataUrl(file),
+              })),
+            );
+            const result = createSaqApplicantObjection({
+              state,
+              sourceDocument: selectedDocument,
+              received,
+              summary: get("summary", "Краткое описание"),
+              requirements: get("requirements", "Требования заявителя"),
+              selectedPointIds,
+              pointArguments: selectedPointArguments,
+              attachments,
+            });
+            onSave(result.state, result.caseId);
+            onClose();
+          } catch (cause) {
+            setError(
+              cause instanceof Error
+                ? cause.message
+                : "Не удалось отправить возражение",
+            );
+          } finally {
+            setIsSubmitting(false);
+          }
+        }}
+      >
+        <Notice>
+          Данные кабинета заявителя подставлены автоматически. Выберите вид
+          возражения и документ, затем отметьте пункты, с которыми не согласны.
+        </Notice>
+
+        <section className="disputed-point-form-card">
+          <div className="disputed-point-form-head">
+            <h3>Данные заявителя</h3>
+          </div>
+          <div className="disputed-point-form-body form-grid">
+            <div className="fact">
+              <small>Наименование заявителя</small>
+              <div>{SAQ_APPLICANT_PROFILE.name}</div>
+            </div>
+            <div className="fact">
+              <small>{SAQ_APPLICANT_PROFILE.identifierType}</small>
+              <div>{SAQ_APPLICANT_PROFILE.identifier}</div>
+            </div>
+            <div className="fact">
+              <small>Местонахождение</small>
+              <div>{SAQ_APPLICANT_PROFILE.address}</div>
+            </div>
+            <div className="fact">
+              <small>Портал подачи</small>
+              <div>SAQ</div>
+            </div>
+          </div>
+        </section>
+
+        <label className="field">
+          <span>Вид возражения</span>
+          <select
+            value={appealType}
+            onChange={(event) => {
+              const nextType = event.target.value;
+              const nextDocuments = sourceDocuments.filter(
+                (document) => document.appealType === nextType,
+              );
+              setAppealType(nextType);
+              setSelectedDocumentId(nextDocuments[0]?.id ?? "");
+              setSelectedPointIds([]);
+            }}
+          >
+            <option value={PREVENTIVE_CONTROL_ACT_OBJECTION}>
+              {PREVENTIVE_CONTROL_ACT_OBJECTION}
+            </option>
+            <option value={PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION}>
+              {PREVENTIVE_CONTROL_PRESCRIPTION_OBJECTION}
+            </option>
+          </select>
+        </label>
+
+        <label className="field">
+          <span>Выберите {isAct ? "акт о результате проверки" : "предписание"}</span>
+          <select
+            value={selectedDocumentId}
+            required
+            disabled={!sourceDocumentsForType.length}
+            onChange={(event) => {
+              setSelectedDocumentId(event.target.value);
+              setSelectedPointIds([]);
+            }}
+          >
+            <option value="">Выберите документ</option>
+            {sourceDocumentsForType.map((document) => (
+              <option value={document.id} key={document.id}>
+                № {document.number} от {saqDisplayDate(document.date)} — {document.issuer}
+              </option>
+            ))}
+          </select>
+          {!sourceDocumentsForType.length && (
+            <small>
+              В кабинете пока нет документов этого вида для подачи возражения.
+            </small>
+          )}
+        </label>
+
+        {selectedDocument && (
+          <>
+            <section className="disputed-point-form-card">
+              <div className="disputed-point-form-head">
+                <h3>Сведения выбранного документа</h3>
+              </div>
+              <div className="disputed-point-form-body form-grid">
+                <div className="fact">
+                  <small>Документ</small>
+                  <div>{selectedDocument.name}</div>
+                </div>
+                <div className="fact">
+                  <small>Номер</small>
+                  <div>{selectedDocument.number}</div>
+                </div>
+                <div className="fact">
+                  <small>Дата</small>
+                  <div>{saqDisplayDate(selectedDocument.date)}</div>
+                </div>
+                <div className="fact">
+                  <small>Орган аудита</small>
+                  <div>{selectedDocument.issuer}</div>
+                </div>
+              </div>
+            </section>
+
+            <h3 className="form-section">Выберите оспариваемые пункты</h3>
+            <p className="disputed-points-hint">
+              Можно выбрать один или несколько пунктов. Для каждого выбранного
+              пункта укажите свой довод.
+            </p>
+            {selectedDocument.points.map((point) => {
+              const checked = selectedPointIds.includes(point.id);
+              return (
+                <section className="disputed-point-form-card" key={point.id}>
+                  <div className="disputed-point-form-body">
+                    <label className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) =>
+                          setSelectedPointIds((current) =>
+                            event.target.checked
+                              ? [...current, point.id]
+                              : current.filter((id) => id !== point.id),
+                          )
+                        }
+                      />
+                      <span>
+                        <strong>
+                          {point.code} — пункт нарушения № {point.number}
+                        </strong>
+                      </span>
+                    </label>
+                    <p>{point.description}</p>
+                    {checked && (
+                      <label className="field">
+                        <span>
+                          Довод заявителя по пункту № {point.number}
+                          <span className="required"> *</span>
+                        </span>
+                        <textarea
+                          name={`argument_${point.id}`}
+                          rows={4}
+                          required
+                          placeholder="Почему вы не согласны с этим пунктом?"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </section>
+              );
+            })}
+
+            <div className="form-grid">
+              <label className="field">
+                <span>
+                  Дата получения документа<span className="required"> *</span>
+                </span>
+                <input type="date" name="received" required />
+              </label>
+              <div className="field">
+                <span>Номер и дата возражения</span>
+                <small>
+                  Номер присвоится автоматически. Дата подачи: {saqDisplayDate(state.date)}.
+                </small>
+              </div>
+            </div>
+
+            <label className="field">
+              <span>
+                Краткое описание<span className="required"> *</span>
+              </span>
+              <textarea
+                name="summary"
+                rows={3}
+                required
+                placeholder="Кратко опишите суть возражения"
+              />
+            </label>
+            <label className="field">
+              <span>
+                Требования заявителя<span className="required"> *</span>
+              </span>
+              <textarea
+                name="requirements"
+                rows={4}
+                required
+                placeholder="Например: исключить вывод по пункту и отменить предписание в этой части"
+              />
+            </label>
+            <label className="field">
+              <span>Приложения к возражению</span>
+              <input
+                type="file"
+                multiple
+                onChange={(event) =>
+                  setAttachmentFiles(Array.from(event.target.files ?? []))
+                }
+              />
+              <small>При необходимости приложите подтверждающие документы.</small>
+            </label>
+            {attachmentFiles.length > 0 && (
+              <p className="muted">
+                Файлов выбрано: {attachmentFiles.length} — {attachmentFiles.map((file) => file.name).join(", ")}
+              </p>
+            )}
+          </>
+        )}
+
+        {error && (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="dialog-actions">
+          <Button onClick={onClose}>Отмена</Button>
+          <Button primary type="submit" disabled={!selectedDocument || isSubmitting}>
+            {isSubmitting ? "Отправка…" : "Отправить возражение"}
           </Button>
         </div>
       </form>
