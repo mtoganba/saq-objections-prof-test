@@ -690,6 +690,7 @@ export default function CaseWorkspace({
   const preventiveSourceDocument = preventiveControlSourceDocumentLabels(
     c.appealType,
   );
+  const preventiveControl = isPreventiveControlObjectionType(c.appealType);
   const currentExecutionDeadline = executionDeadline(c, role);
   const authorityRequests = c.requests.filter((request) =>
     isRequestForAuthority(request, role),
@@ -849,6 +850,26 @@ export default function CaseWorkspace({
                     label="Дата возражения, жалобы, заявления"
                     value={formatDate(c.appealDate)}
                   />
+                  {preventiveControl && (
+                    <>
+                      <Fact
+                        label="Дата получения обращения"
+                        value={formatDate(c.intakeDate || c.registered)}
+                      />
+                      <Fact
+                        label="Дата регистрации в системе"
+                        value={formatDate(c.registered)}
+                      />
+                      <Fact
+                        label="Способ регистрации"
+                        value={
+                          c.registrationMethod === "automatic"
+                            ? "Автоматически"
+                            : "Ручной ввод"
+                        }
+                      />
+                    </>
+                  )}
                   <Fact label="Местонахождение" value={c.address} />
                   <Fact label="Представитель" value={c.applicant} />
                   {supportsRepresentativeConfirmation && (
@@ -1907,32 +1928,38 @@ export default function CaseWorkspace({
               ) : (
                 <>
                   <div className="support-row">
-                    <span>Поступило</span>
-                    <strong>{formatDate(c.registered)}</strong>
+                    <span>{preventiveControl ? "Получено обращение" : "Поступило"}</span>
+                    <strong>
+                      {formatDate(preventiveControl ? c.intakeDate || c.registered : c.registered)}
+                    </strong>
                   </div>
                   {currentExecutionDeadline && (
                     <div className="support-row">
-                      <span>Исполнить до</span>
+                      <span>
+                        {preventiveControl
+                          ? "Внутренний срок секретаря"
+                          : "Исполнить до"}
                       <strong>{formatDate(currentExecutionDeadline)}</strong>
                     </div>
                   )}
                   <div className="support-row">
                     <span>Срок рассмотрения</span>
                     <strong>
-                      {c.status === "paused"
+                      {c.status === "paused" && !preventiveControl
                         ? "Приостановлен"
                         : formatDate(reviewDeadline(c))}
                     </strong>
                   </div>
                 </>
               )}
-              {!isAuthorityRole(role) && c.extensionDays > 0 && (
+              {!preventiveControl && !isAuthorityRole(role) && c.extensionDays > 0 && (
                 <div className="support-row">
                   <span>Продление</span>
                   <strong>+{c.extensionDays} раб. дн.</strong>
                 </div>
               )}
-              {!isAuthorityRole(role) &&
+              {!preventiveControl &&
+                !isAuthorityRole(role) &&
                 c.appealType !== "Жалоба на уведомление" &&
                 c.pauseDays > 0 && (
                   <div className="support-row">
