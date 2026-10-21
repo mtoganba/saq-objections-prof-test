@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 31915)
-Total output lines: 2952
-
 import { CLOSED, OUTCOMES, ROLES } from "../../../data/constants";
 import { COMMISSION_ATTENDANCE_MEMBERS } from "../../../data/objections";
 import { DEMO_USER } from "../../../config";
@@ -1462,7 +1459,163 @@ export function applyAction(
               savedPositions.get(`${point.id}_${member.id}`)?.comment ||
               savedPositions.get(`legacy_${member.id}`)?.comment ||
               "",
-          ).trim(…1915 tokens truncated…s.find(
+          ).trim(),
+        })),
+      );
+
+      const allVotesRecorded = disputed(c).every((point) =>
+        c.members.every((member) =>
+          Boolean(normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id])),
+        ),
+      );
+      if (allVotesRecorded) c.status = "meeting_certificate_approved";
+      title = "Справка заполнена результатами голосования";
+      note =
+        "В справке зафиксированы голоса и комментарии участников заседания. Результаты, внесённые вручную, учитываются наравне с электронными голосами.";
+      doc("Справка: результаты голосования членов АК", "certificate", note);
+      break;
+    }
+    case "approve-meeting-certificate": {
+      if (!c.certificate?.memberPositions.length)
+        throw new Error(
+          "Сначала заполните и сохраните справку результатами голосования",
+        );
+      c.status = "meeting_certificate_signed";
+      title = "Справка согласована";
+      note =
+        "Справка по результатам голосования согласована и ожидает подписи исполнителя рабочего органа.";
+      break;
+    }
+    case "sign-meeting-certificate": {
+      if (!c.certificate?.memberPositions.length)
+        throw new Error("Справка результатами голосования не заполнена");
+      c.status = "meeting_certificate_approved";
+      title = "Справка подписана";
+      note =
+        "Справка по результатам голосования подписана. Можно зафиксировать проведение заседания.";
+      break;
+    }
+    case "fill-request-response": {
+      const request = pendingDvgaOrKvgaRequest(c, role);
+      if (!request)
+        throw new Error("Это действие доступно только для запроса в ДВГА/КВГА");
+      request.authorityResponses ||= {};
+      for (const point of disputed(c)) {
+        const finding = text(
+          `authorityFinding_${point.id}`,
+          `Нарушение по пункту ${point.number}`,
+        );
+        const response = text(
+          `authorityResponse_${point.id}`,
+          `Мотивированный ответ по пункту ${point.number}`,
+        );
+        request.authorityResponses[point.id] = { finding, response };
+        point.authorityFinding = finding;
+        point.position = response;
+      }
+      request.responded = date;
+      doc(
+        `Заполненное приложение к запросу в ${request.recipient}`,
+        "authority-response-appendix",
+        `Заполненное приложение к запросу в ${request.recipient}.`,
+        request.id,
+      );
+      note =
+        "Мотивированные ответы ДВГА/КВГА заполнены по всем оспариваемым пунктам.";
+      c.status =
+        requestRoutingStatus(c) || authorityStatus(c) || "response_approval";
+      doc(
+        request.route === "additional-hearing"
+          ? "Дополнительный мотивированный ответ ДВГА/КВГА по дополнительному запросу"
+          : "Мотивированный ответ ДВГА/КВГА",
+        "authority-response",
+        note,
+        request.id,
+      );
+      break;
+    }
+    case "approve-response": {
+      const request = authorityRequestsForRole(c, role).find(
+        (item) => !!item.responded && !item.responseApproved,
+      );
+      if (!request) throw new Error("Нет ответа, ожидающего согласования");
+      request.responseApproved = date;
+      c.status =
+        requestRoutingStatus(c) || authorityStatus(c) || "response_signed";
+      title = "Ответ ДВГА/КВГА согласован";
+      note = "Согласованный ответ ДВГА/КВГА ожидает подписания.";
+      break;
+    }
+    case "sign-response": {
+      const request = authorityRequestsForRole(c, role).find(
+        (item) => !!item.responseApproved && !item.responseSigned,
+      );
+      if (!request) throw new Error("Нет согласованного ответа для подписания");
+      request.responseSigned = date;
+      request.lifecycleStatus = "response_received";
+      const pausedDays = advanceAfterResponses(c, date);
+      if (pausedDays === null)
+        c.status =
+          requestRoutingStatus(c) || authorityStatus(c) || "request_approved";
+      title = "Ответ ДВГА/КВГА подписан";
+      note =
+        pausedDays === null
+          ? "Ответ получен в кабинете SAQ. Обращение ожидает ответы по остальным направленным запросам."
+          : "Все ответы поступили в SAQ. Обращение автоматически переведено на этап «Материалы».";
+      if (pausedDays && pausedDays > 0)
+        note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
+      next.notifications.push({
+        id: `notification-${c.id}-${next.notifications.length + 1}`,
+        caseId: c.id,
+        recipient: ROLES.work,
+        recipientRole: "work",
+        date,
+        read: false,
+        kind: "request-response",
+        text: `Поступил ответ ${request.recipient} на запрос по обращению №${c.appealNumber || c.id}. Откройте обращение для ознакомления.`,
+      });
+      break;
+    }
+    case "position": {
+      if (!allResponsesReadyForConfirmation(c))
+        throw new Error(
+          "Зафиксировать получение можно после поступления ответов на все запросы",
+        );
+      const receivedRequests = c.requests.filter(
+        (request) => !request.confirmed,
+      );
+      if (!receivedRequests.length)
+        throw new Error("Все полученные ответы уже зафиксированы");
+      receivedRequests.forEach((request) => {
+        if (!isDvgaOrKvgaRequest(request.recipient) && !request.responded)
+          request.responded = date;
+        request.confirmed = date;
+      });
+      note = `Рабочий орган зафиксировал получение ответов: ${receivedRequests
+        .map((request) => request.recipient)
+        .join(", ")}.`;
+      if (c.requestPauseStartedAt && canSuspendReview(c)) {
+        const pausedDays = workdaysBetween(c.requestPauseStartedAt, date);
+        if (pausedDays > 0) {
+          c.pauseDays += pausedDays;
+          note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
+        }
+      }
+      c.requestPauseStartedAt = undefined;
+      if (
+        c.requestRoute === "additional-analysis" ||
+        c.requestRoute === "additional-commission" ||
+        c.requestRoute === "additional-hearing"
+      ) {
+        c.requestRouteCompletedAt = date;
+      }
+      c.status = "materials";
+      doc("Полученные материалы по запросам", "position", note);
+      break;
+    }
+    case "record-external-response": {
+      const requestId = text("externalRequestId", "Запрос другого органа");
+      const request = c.requests.find(
         (item) =>
           item.id === requestId &&
           item.template === "other" &&
