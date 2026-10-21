@@ -880,11 +880,15 @@
 }
 .analysis-appendix-template th:nth-child(2),
 .analysis-appendix-template td:nth-child(2) {
-  width: 32%;
+  width: 27%;
 }
 .analysis-appendix-template th:nth-child(3),
 .analysis-appendix-template td:nth-child(3) {
-  width: 63%;
+  width: 31%;
+}
+.analysis-appendix-template th:nth-child(4),
+.analysis-appendix-template td:nth-child(4) {
+  width: 37%;
 }
 .request-documents-list {
   display: grid;

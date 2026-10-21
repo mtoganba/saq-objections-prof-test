@@ -377,21 +377,30 @@ export function actionForm(
               ? request.recipient.toUpperCase().includes("КВГА")
               : request.recipient.toUpperCase().includes("ДВГА"))),
       );
-      for (const point of disputed(c))
+      for (const point of disputed(c)) {
+        const automaticFinding =
+          point.authorityFinding ||
+          point.finding ||
+          (c.submittedViaSaqApplicant ? point.title : "");
+        const savedFinding =
+          authorityRequest?.authorityResponses?.[point.id]?.finding || "";
         fields.push(
           heading(point.id, `Пункт ${point.number} — ${point.title}`),
-          area(
-            `authorityFinding_${point.id}`,
-            "Нарушение, по которым поступило возражение",
-            authorityRequest?.authorityResponses?.[point.id]?.finding ??
-              (c.submittedViaSaqApplicant ? point.authorityFinding : ""),
-          ),
+          {
+            ...area(
+              `authorityFinding_${point.id}`,
+              "Нарушение, по которым поступило возражение",
+              automaticFinding || savedFinding,
+            ),
+            readOnly: c.submittedViaSaqApplicant || Boolean(automaticFinding || savedFinding),
+          },
           area(
             `authorityResponse_${point.id}`,
             "Мотивированный ответ ДВГА/КВГА по доводу возражения",
             authorityRequest?.authorityResponses?.[point.id]?.response,
           ),
         );
+      }
       break;
     case "position":
       title = "Ответ получен";

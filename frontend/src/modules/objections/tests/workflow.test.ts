@@ -252,6 +252,154 @@ test("по профилактическому контролю материал�
   );
   assert.ok(h.c.members.some((member) => member.id === "turegeldiev-ar" && member.isChair));
   assert.equal(nextAction(h.c, "commission")?.action, "commission-vote");
+
+  h.c.requests = [
+    {
+      id: "request-dvga",
+      recipient: "ДВГА по г. Астана",
+      date: h.state.date,
+      text: "Запрос по обращению",
+      deadline: "2026-09-10",
+      template: "dvga",
+      sent: h.state.date,
+    },
+  ];
+  h.c.documents.push(
+    {
+      name: "Запрос в ДВГА",
+      kind: "request",
+      text: "Запрос по обращению",
+      date: h.state.date,
+      author: "Секретарь комиссии",
+      requestId: "request-dvga",
+    },
+    {
+      name: "Приложение к запросу в ДВГА",
+      kind: "request-appendix",
+      text: "Приложение по пунктам возражения",
+      date: h.state.date,
+      author: "Секретарь комиссии",
+      requestId: "request-dvga",
+    },
+  );
+  const secretaryMaterialsHtml = renderToStaticMarkup(
+    createElement(CaseWorkspace, {
+      c: h.c,
+      date: h.state.date,
+      tab: "review",
+      role: "work",
+      onBack() {},
+      onTab() {},
+      onAction() {},
+      onDocument() {},
+      onUpload() {},
+    }),
+  );
+  assert.match(secretaryMaterialsHtml, /Запрос в ДВГА/);
+  assert.match(secretaryMaterialsHtml, /Приложение к запросу в ДВГА/);
+
+  const commissionMaterialsHtml = renderToStaticMarkup(
+    createElement(CaseWorkspace, {
+      c: h.c,
+      date: h.state.date,
+      tab: "review",
+      role: "commission",
+      activeCommissionMemberId: "turegeldiev-ar",
+      onBack() {},
+      onTab() {},
+      onAction() {},
+      onDocument() {},
+      onUpload() {},
+    }),
+  );
+  assert.match(commissionMaterialsHtml, /Открыть таблицу голосования/);
+  assert.doesNotMatch(commissionMaterialsHtml, /Материалы доступны для ознакомления/);
+});
+
+test("автозаполненное нарушение из акта нельзя изменить, оно сохраняется и печатается в ответе органа", () => {
+  const h = harness();
+  const point = h.c.issues.find((item) => item.disputed)!;
+  const actViolation = "ОПИ-01 — пункт нарушения № 1. Описание из акта";
+  h.c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  h.c.submittedViaSaqApplicant = true;
+  point.finding = actViolation;
+  point.authorityFinding = actViolation;
+  h.c.status = "request_approved";
+  h.c.requests = [
+    {
+      id: "authority-request",
+      recipient: "ДВГА по г. Астана",
+      date: h.state.date,
+      text: "Запрос по обращению",
+      deadline: "2026-09-10",
+      template: "dvga",
+      sent: h.state.date,
+    },
+  ];
+
+  const responseField = actionForm(
+    "fill-request-response",
+    h.c,
+    h.state.date,
+    {},
+    "dvga",
+  ).fields.find((field) => field.name === `authorityFinding_${point.id}`);
+  assert.equal(responseField?.value, actViolation);
+  assert.equal(responseField?.readOnly, true);
+
+  const responseFormHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "fill-request-response",
+      c: h.c,
+      date: h.state.date,
+      role: "dvga",
+      onSubmit: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+  assert.match(responseFormHtml, /readonly=""/);
+  assert.match(responseFormHtml, /ОПИ-01 — пункт нарушения № 1. Описание из акта/);
+
+  h.run("fill-request-response", "dvga", {
+    [`authorityFinding_${point.id}`]: "Попытка изменить нарушение",
+    [`authorityResponse_${point.id}`]: "Мотивированный ответ органа аудита",
+  });
+  assert.equal(h.c.issues.find((item) => item.id === point.id)?.authorityFinding, actViolation);
+  assert.equal(h.c.requests[0].authorityResponses?.[point.id]?.finding, actViolation);
+  const savedAppendix = h.c.documents.find(
+    (document) => document.kind === "authority-response-appendix",
+  )!;
+  const savedPrintHtml = renderToStaticMarkup(
+    createElement(DocumentContent, {
+      c: h.c,
+      kind: "authority-response-appendix",
+      document: savedAppendix,
+    }),
+  );
+  assert.match(savedPrintHtml, /ОПИ-01 — пункт нарушения № 1. Описание из акта/);
+});
+
+test("печатное приложение анализа содержит три содержательных столбца", () => {
+  const h = harness();
+  const point = h.c.issues.find((item) => item.disputed)!;
+  point.authorityFinding = "Нарушение из акта";
+  point.argument = "Возражение объекта аудита";
+  h.c.analysisAppendixArgumentsByPoint = {
+    [point.id]: "Доводы органа аудита, заявителя и КВГА",
+  };
+
+  const appendixHtml = renderToStaticMarkup(
+    createElement(DocumentContent, {
+      c: h.c,
+      kind: "analysis-appendix",
+    }),
+  );
+  assert.match(appendixHtml, /<th>Нарушение, по которым поступило возражение<\/th>/);
+  assert.match(appendixHtml, /<th>Возражение объекта аудита<\/th>/);
+  assert.match(appendixHtml, /<th>Доводы органа аудита, заявителя, КВГА<\/th>/);
+  assert.match(appendixHtml, /Нарушение из акта/);
+  assert.match(appendixHtml, /Возражение объекта аудита/);
+  assert.match(appendixHtml, /Доводы органа аудита, заявителя и КВГА/);
 });
 
 test("три исходных дела: разные сроки и перенос окончания месяца", () => {

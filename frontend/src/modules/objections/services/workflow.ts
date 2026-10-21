@@ -1663,10 +1663,19 @@ export function applyAction(
         throw new Error("Это действие доступно только для запроса в ДВГА/КВГА");
       request.authorityResponses ||= {};
       for (const point of disputed(c)) {
-        const finding = text(
-          `authorityFinding_${point.id}`,
-          `Нарушение по пункту ${point.number}`,
-        );
+        const automaticFinding =
+          point.authorityFinding ||
+          point.finding ||
+          (c.submittedViaSaqApplicant ? point.title : "");
+        const savedFinding =
+          request.authorityResponses[point.id]?.finding || "";
+        const finding =
+          automaticFinding ||
+          savedFinding ||
+          text(
+            `authorityFinding_${point.id}`,
+            `Нарушение по пункту ${point.number}`,
+          );
         const response = text(
           `authorityResponse_${point.id}`,
           `Мотивированный ответ по пункту ${point.number}`,

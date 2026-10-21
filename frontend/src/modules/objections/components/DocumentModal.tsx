@@ -459,11 +459,11 @@ export function DocumentContent({
                     <td>
                       {appendixFindingPreview?.[point.id] ??
                         (isResponseAppendix
-                          ? (request?.authorityResponses?.[point.id]?.finding ??
-                            (useLegacyAuthorityValues
-                              ? point.authorityFinding
-                              : ""))
-                          : point.authorityFinding) ??
+                          ? (request?.authorityResponses?.[point.id]?.finding ||
+                            point.authorityFinding ||
+                            point.finding ||
+                            (snapshot.submittedViaSaqApplicant ? point.title : ""))
+                          : point.authorityFinding || point.finding) ??
                         ""}
                     </td>
                     <td>
@@ -512,6 +512,7 @@ export function DocumentContent({
               <tr>
                 <th>№ п-п</th>
                 <th>Нарушение, по которым поступило возражение</th>
+                <th>Возражение объекта аудита</th>
                 <th>Доводы органа аудита, заявителя, КВГА</th>
               </tr>
             </thead>
@@ -521,7 +522,22 @@ export function DocumentContent({
                 .map((point) => (
                   <tr key={point.id}>
                     <td>{point.number}</td>
-                    <td>{point.authorityFinding}</td>
+                    <td>
+                      {point.authorityFinding ||
+                        point.finding ||
+                        (snapshot.submittedViaSaqApplicant ? point.title : "")}
+                    </td>
+                    <td>
+                      <div>{point.argument || "—"}</div>
+                      {(point.additionalArguments || []).map((argument, index) => (
+                        <p key={`${point.id}-additional-argument-${index}`}>
+                          <b>
+                            Дополнительные доводы объекта гос. аудита (заявителя):
+                          </b>{" "}
+                          {argument}
+                        </p>
+                      ))}
+                    </td>
                     <td>{argumentsByPoint[point.id] || ""}</td>
                   </tr>
                 ))}
@@ -531,7 +547,6 @@ export function DocumentContent({
       </article>
     );
   }
-
   if (kind === "certificate") {
     const points = snapshot.issues.filter((point) => point.disputed);
     const authorityRequests = (snapshot.requests || c.requests).filter((item) =>
@@ -1459,7 +1474,7 @@ export function wordDocumentHtml({
   const css =
     "body{font:12pt 'Times New Roman',serif;line-height:1;color:#111}p{white-space:pre-wrap;text-align:justify}table{width:100%;border-collapse:collapse;table-layout:fixed}th,td{border:1px solid #111;padding:8px;vertical-align:top}.certificate-template{padding:20mm 15mm;text-align:justify}.certificate-template h1,.certificate-template h2{text-align:center;font-size:12pt}.certificate-template-intro{text-align:justify;text-indent:12mm}.certificate-template-explanation{text-align:center;font-style:italic}.certificate-template-point{break-inside:avoid}.certificate-template-point h3{text-align:center}.certificate-template-line{padding:2px 0}.certificate-template-line p{margin:4px 0}.certificate-members-table th{text-align:center}.certificate-point-votes-table th,.certificate-point-votes-table td{min-width:0;padding:5px;overflow-wrap:anywhere;word-break:break-word;white-space:normal;font-size:12pt;line-height:1}.certificate-point-votes-table th{text-align:center}.certificate-point-votes-table td{text-align:justify}.protocol-template-attendance-members>span{display:block}.protocol-template,.protocol-template *{font-size:12pt!important}";
   const analysisAppendixCss =
-    ".analysis-appendix-template h2{text-align:center;font-size:16pt;margin:0 0 24px}.analysis-appendix-template th:nth-child(2),.analysis-appendix-template td:nth-child(2){width:32%}.analysis-appendix-template th:nth-child(3),.analysis-appendix-template td:nth-child(3){width:63%}";
+    ".analysis-appendix-template h2{text-align:center;font-size:16pt;margin:0 0 24px}.analysis-appendix-template th:nth-child(2),.analysis-appendix-template td:nth-child(2){width:27%}.analysis-appendix-template th:nth-child(3),.analysis-appendix-template td:nth-child(3){width:31%}.analysis-appendix-template th:nth-child(4),.analysis-appendix-template td:nth-child(4){width:37%}";
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Материалы обращения</title><style>${css}${analysisAppendixCss}</style></head><body>${renderToStaticMarkup(
     <DocumentContent c={c} kind={kind} document={document} />,
   )}</body></html>`;

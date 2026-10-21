@@ -107,6 +107,8 @@ export function Field({
           required={required}
           disabled={disabled}
           rows={3}
+          readOnly={field.readOnly}
+          aria-readonly={field.readOnly || undefined}
         />
       ) : field.type === "select" ? (
         <select
@@ -1041,8 +1043,9 @@ export default function ActionModal({
                   disputed(c).map((point) => [
                     point.id,
                     values[`authorityFinding_${point.id}`] ||
-                      authorityRequestForResponse?.authorityResponses?.[point.id]
-                        ?.finding ||
+                      authorityRequestForResponse?.authorityResponses?.[point.id]?.finding ||
+                      point.authorityFinding ||
+                      (c.submittedViaSaqApplicant ? point.finding || point.title : "") ||
                       "",
                   ]),
                 )}

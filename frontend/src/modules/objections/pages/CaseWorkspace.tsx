@@ -1203,6 +1203,7 @@ export default function CaseWorkspace({
                       c={c}
                       date={date}
                       role={role}
+                      commissionMemberCanVote={commissionMemberCanVote}
                       recommendations={recommendations}
                       onAction={onAction}
                       onHistory={() => onTab("history")}
@@ -1754,7 +1755,9 @@ export default function CaseWorkspace({
                             </section>
                           );
                         })}
-                      {(!hideRequestBlocks || role === "commission") &&
+                      {(!hideRequestBlocks ||
+                        role === "commission" ||
+                        role === "work") &&
                         c.requests.length > 0 && (
                           <>
                             {[
