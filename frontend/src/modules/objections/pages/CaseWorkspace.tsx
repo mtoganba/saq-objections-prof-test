@@ -617,6 +617,7 @@ export default function CaseWorkspace({
   date,
   tab,
   role,
+  activeCommissionMemberId,
   commissionMeetingCompleted = false,
   recommendations = [],
   onBack,
@@ -630,6 +631,7 @@ export default function CaseWorkspace({
   date?: string;
   tab: CaseTab;
   role: Role;
+  activeCommissionMemberId?: string;
   commissionMeetingCompleted?: boolean;
   recommendations?: CaseRecommendation[];
   onBack: () => void;
@@ -713,10 +715,26 @@ export default function CaseWorkspace({
   const recipientLimited = isAuthorityRole(role) || isSubjectRole(role);
   const isCommission = role === "commission";
   const canViewOverview = !recipientLimited || isAuthorityRole(role);
+  const preventiveMeetingCompleted =
+    isPreventiveControlObjectionType(c.appealType) &&
+    [
+      "meeting",
+      "protocol",
+      "decided",
+      "final_response_approval",
+      "final_response_signed",
+      "final_response_delivery",
+      "delivered",
+      "completed",
+      "court",
+    ].includes(c.status);
   const commissionCurrentTaskHidden =
     role === "commission" &&
-    commissionMeetingCompleted &&
+    (commissionMeetingCompleted || preventiveMeetingCompleted) &&
     c.status !== "protocol";
+  const commissionMemberCanVote = c.members.some(
+    (member) => member.id === activeCommissionMemberId && member.present,
+  );
   return (
     <>
       <div className="back-row">
@@ -1068,6 +1086,7 @@ export default function CaseWorkspace({
                       c={c}
                       date={date}
                       role={role}
+                      commissionMemberCanVote={commissionMemberCanVote}
                       recommendations={recommendations}
                       onAction={onAction}
                       onHistory={() => onTab("history")}

@@ -8,7 +8,10 @@ import type {
   Role,
 } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
-import { requiresMotivatedResponseType } from "../appealTypes";
+import {
+  isPreventiveControlObjectionType,
+  requiresMotivatedResponseType,
+} from "../appealTypes";
 import {
   additionalActions,
   nextAction,
@@ -525,6 +528,8 @@ const TASK_HELP: Partial<Record<Action, string>> = {
     "Подпишите согласованную справку. После этого она будет готова к направлению вместе с материалами членам апелляционной комиссии.",
   "commission-vote":
     "Выберите вариант решения по каждому оспариваемому пункту и сохраните результаты голосования.",
+  "select-preventive-attendees":
+    "Отметьте фактически присутствующих членов комиссии. Материалы уже доступны всей Апелляционной комиссии.",
   "fill-meeting-certificate":
     "Проверьте голоса участников заседания, при необходимости внесите результат вручную и добавьте комментарии. Печатная форма справки обновляется сразу.",
   "approve-meeting-certificate":
@@ -584,6 +589,7 @@ export default function ConsiderationProcess({
   onHistory,
   recommendations = [],
   hideStages = false,
+  commissionMemberCanVote = false,
 }: {
   c: ObjectionCase;
   /** Текущая дата демонстрационного календаря SAQ. */
@@ -592,6 +598,8 @@ export default function ConsiderationProcess({
   onAction: (action: Action, role: Role, requestId?: string) => void;
   onHistory: () => void;
   recommendations?: CaseRecommendation[];
+  /** Открытый член комиссии может голосовать только при включении в состав заседания. */
+  commissionMemberCanVote?: boolean;
   /** Члены АК работают только с задачей по делу, без служебной схемы процесса. */
   hideStages?: boolean;
 }) {
@@ -641,6 +649,13 @@ export default function ConsiderationProcess({
   const awaitingAttendancePoll = c.status === "certificate_approved";
   const materialsAvailableForCommission = c.status === "documents_review";
   const meetingCompletionAvailable = !!c.certificate?.memberPositions.length;
+  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
+  const commissionMemberReadOnlyDuringMeeting =
+    role === "commission" &&
+    preventiveCase &&
+    (c.status === "certificate_approved" ||
+      c.status === "commission_members" ||
+      (c.status === "commission_voting" && !commissionMemberCanVote));
   const currentRequestSubstep = requestSubstep(c.status);
   const currentAnalysisSubstep = analysisSubstep(c.status);
   const currentDecisionSubstep = decisionSubstep(c.status);
@@ -843,7 +858,9 @@ export default function ConsiderationProcess({
           </div>
         </div>
       )}
-      {next && !requestActionsVisible ? (
+      {next &&
+      !requestActionsVisible &&
+      !commissionMemberReadOnlyDuringMeeting ? (
         <div className="consideration-task">
           <div>
             <span className="consideration-eyebrow">Текущая задача</span>
@@ -873,7 +890,8 @@ export default function ConsiderationProcess({
               next.action !== "request" &&
               (next.action !== "commission-vote" ||
                 role === "demo-superuser" ||
-                role === "commission") && (
+                (role === "commission" &&
+                  (!preventiveCase || commissionMemberCanVote))) && (
                 <Button
                   primary
                   disabled={
@@ -903,6 +921,15 @@ export default function ConsiderationProcess({
             )}
           </div>
         </div>
+      ) : commissionMemberReadOnlyDuringMeeting ? (
+        <Notice>
+          <strong>Материалы доступны для ознакомления</strong>
+          <p>
+            {c.status === "commission_members"
+              ? "Все материалы обращения открыты членам Апелляционной комиссии. Секретарь определяет состав заседания."
+              : "Вы не включены в состав участников заседания. Материалы доступны для ознакомления, голосование открыто отмеченным участникам."}
+          </p>
+        </Notice>
       ) : awaitingAttendancePoll ? (
         <div className="consideration-task">
           <div>

@@ -478,6 +478,7 @@ export interface CaseNotification {
   read: boolean;
   kind?:
     | "attendance-poll"
+    | "commission-materials"
     | "agenda-sign"
     | "agenda-signed"
     | "request-response"
@@ -682,6 +683,7 @@ export type Action =
   | "sign-response"
   | "approve-certificate"
   | "sign-certificate"
+  | "select-preventive-attendees"
   | "fill-meeting-certificate"
   | "approve-meeting-certificate"
   | "sign-meeting-certificate"

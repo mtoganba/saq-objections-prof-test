@@ -44,7 +44,11 @@ import {
 } from "./useObjectionsModel";
 import { formatDateTime } from "../../utils/dateFormat";
 import { isSubjectRole, subjectRoleForCase } from "./services/saqCabinets";
-import { usesStatementReviewScenario } from "./appealTypes";
+import {
+  isPreventiveControlObjectionType,
+  preventiveControlMaterialsOpen,
+  usesStatementReviewScenario,
+} from "./appealTypes";
 
 type DialogState =
   | { type: "action"; action: Action; requestId?: string }
@@ -293,12 +297,25 @@ export default function ObjectionsModule() {
     COMMISSION_ATTENDANCE_MEMBERS.find(
       (member) => member.id === model.state.activeCommissionMemberId,
     ) || COMMISSION_ATTENDANCE_MEMBERS[0];
-  const commissionCanOpenCase = (caseId: string) =>
-    currentPollForCase(
-      model.state.cases.find((item) => item.id === caseId)!,
-      model.state.attendancePolls,
-      model.state.meetings,
-    )?.responses[activeCommissionMember.id] === "yes";
+  const commissionCanOpenCase = (caseId: string) => {
+    const target = model.state.cases.find((item) => item.id === caseId);
+    if (!target) return false;
+    if (
+      preventiveControlMaterialsOpen(
+        target.appealType,
+        target.status,
+        target.resumeStatus,
+      )
+    )
+      return true;
+    return (
+      currentPollForCase(
+        target,
+        model.state.attendancePolls,
+        model.state.meetings,
+      )?.responses[activeCommissionMember.id] === "yes"
+    );
+  };
   const subjectCanOpenCase = (item: ObjectionCase) => {
     const isApplicantCabinet = subjectRoleForCase(item) === model.role;
     const hasMotivatedResponse = Boolean(
@@ -332,7 +349,9 @@ export default function ObjectionsModule() {
   const openCase = (c: ObjectionCase) => {
     if (model.role === "commission" && !commissionCanOpenCase(c.id)) {
       model.setToast(
-        "Карточка станет доступна после подтверждения присутствия на заседании.",
+        isPreventiveControlObjectionType(c.appealType)
+          ? "Материалы откроются членам комиссии, когда обращение перейдёт на этап заседания."
+          : "Карточка станет доступна после подтверждения присутствия на заседании.",
       );
       return;
     }
@@ -2071,8 +2090,9 @@ export default function ObjectionsModule() {
         (c ? (
           model.role === "commission" && !commissionCanOpenCase(c.id) ? (
             <Notice tone="amber">
-              Карточка обращения доступна члену АК только после ответа «Да» в
-              опросе о присутствии на заседании.
+              {isPreventiveControlObjectionType(c.appealType)
+                ? "Материалы обращения откроются членам АК после перехода на этап заседания."
+                : "Карточка обращения доступна члену АК только после ответа «Да» в опросе о присутствии на заседании."}
             </Notice>
           ) : isSubjectRole(model.role) && !subjectCanOpenCase(c) ? (
             <Notice tone="amber">
@@ -2085,6 +2105,7 @@ export default function ObjectionsModule() {
               date={model.state.date}
               tab={model.route.tab || "review"}
               role={model.role}
+              activeCommissionMemberId={activeCommissionMember.id}
               commissionMeetingCompleted={Boolean(
                 model.state.meetings?.some(
                   (meeting) =>
@@ -2111,6 +2132,7 @@ export default function ObjectionsModule() {
                 if (
                   action === "assign-work-executor" ||
                   action === "commission-vote" ||
+                  action === "select-preventive-attendees" ||
                   action === "vote" ||
                   action === "fill-meeting-certificate"
                 ) {

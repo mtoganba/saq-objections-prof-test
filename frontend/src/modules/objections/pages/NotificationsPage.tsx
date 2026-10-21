@@ -31,8 +31,7 @@ export default function NotificationsPage({
     role === "commission"
       ? availableNotifications.filter(
           (notification) =>
-            (notification.kind === "attendance-poll" ||
-              notification.kind === "agenda-signed") &&
+            notification.kind === "commission-materials" &&
             notification.commissionMemberId === activeCommissionMemberId,
         )
       : availableNotifications.filter((notification) =>
@@ -51,7 +50,7 @@ export default function NotificationsPage({
         title="Уведомления"
         subtitle={
           role === "commission"
-            ? "Опросы о присутствии и доступ к материалам заседаний"
+            ? "Материалы обращений, переданных на рассмотрение комиссии"
             : "Автоматические сообщения объектам аудита и заявителям"
         }
       />
@@ -76,12 +75,16 @@ export default function NotificationsPage({
                     <td>{notification.recipient}</td>
                     <td>
                       {notification.text}
-                      {notification.kind === "attendance-poll" && !notification.read && (
+                      {notification.kind === "commission-materials" && !notification.read && (
                         <span className="badge blue notification-new-badge">Новое</span>
                       )}
                     </td>
                     <td>
-                      {notification.kind === "attendance-poll" ? (
+                      {notification.kind === "commission-materials" ? (
+                        <Button primary onClick={() => onOpenCase(notification.caseId)}>
+                          Открыть материалы
+                        </Button>
+                      ) : notification.kind === "attendance-poll" ? (
                         <div className="notification-actions">
                           {notification.meetingId && (
                             <Button

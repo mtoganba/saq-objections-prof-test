@@ -34,6 +34,51 @@ export function isPreventiveControlObjectionType(
   return PREVENTIVE_CONTROL_OBJECTION_TYPES.some((item) => item === type);
 }
 
+const PREVENTIVE_CONTROL_COMMISSION_ACCESS_STATUSES = new Set([
+  "certificate_approved",
+  "documents_review",
+  "commission_members",
+  "commission_voting",
+  "circulated",
+  "meeting_certificate_approval",
+  "meeting_certificate_signed",
+  "meeting_certificate_approved",
+  "meeting",
+  "protocol",
+  "decision_project",
+  "decision_project_approval",
+  "decision_project_signed",
+  "decision_project_delivery",
+  "decision_project_comments",
+  "decision_project_eotinish",
+  "decision_project_hearing",
+  "decided",
+  "final_response_approval",
+  "final_response_signed",
+  "final_response_delivery",
+  "delivered",
+  "completed",
+  "withdrawn",
+  "refused",
+  "court",
+]);
+
+/** Materials become visible to the whole committee once the case reaches its meeting stage. */
+export function preventiveControlMaterialsOpen(
+  appealType: string | null | undefined,
+  status: string,
+  resumeStatus?: string,
+): boolean {
+  const currentStatus = status === "paused" ? resumeStatus : status;
+  return (
+    isPreventiveControlObjectionType(appealType) &&
+    Boolean(
+      currentStatus &&
+        PREVENTIVE_CONTROL_COMMISSION_ACCESS_STATUSES.has(currentStatus),
+    )
+  );
+}
+
 /** These objections use the same post-analysis route as a statement. */
 export function usesStatementReviewScenario(
   appealType?: string | null,

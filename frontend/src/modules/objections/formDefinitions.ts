@@ -2,6 +2,7 @@ import { preparedActionValues } from "./demoForm";
 import type { Action, ObjectionCase, Role } from "../../types";
 import { DEMO_USER } from "../../config";
 import { OUTCOMES } from "../../data/constants";
+import { COMMISSION_ATTENDANCE_MEMBERS } from "../../data/objections";
 import { addWorkdays, filingDeadline } from "./services/deadlines";
 import { disputed } from "./services/decisions";
 import { controlDecisions } from "./services/workflow";
@@ -173,6 +174,7 @@ export function actionForm(
     action === "record-external-decision-project-comment" ||
     action === "proceed-to-final-response" ||
     action === "commission-vote" ||
+    action === "select-preventive-attendees" ||
     action === "fill-meeting-certificate" ||
     action === "edit-certificate"
       ? []
@@ -550,6 +552,21 @@ export function actionForm(
     case "commission-vote":
       title = "Проголосовать";
       note = "Выберите результат голосования по каждому оспариваемому пункту.";
+      break;
+    case "select-preventive-attendees":
+      title = "Состав участников заседания";
+      note =
+        `Отметьте присутствующих членов комиссии. Для кворума необходимо не менее ${Math.ceil(COMMISSION_ATTENDANCE_MEMBERS.length / 2)} участников, ` +
+        "включая Вице-министра либо Директора ДАВГА. Материалы уже открыты всей комиссии; состав определяет, кто голосует и включается в протокол.";
+      fields.push(
+        heading("attendees", "Кто присутствует на заседании"),
+        ...COMMISSION_ATTENDANCE_MEMBERS.map((member) => ({
+          name: `attendee_${member.id}`,
+          label: member.name,
+          type: "checkbox" as const,
+          required: false,
+        })),
+      );
       break;
     case "fill-meeting-certificate":
       title = "Заполнить справку";
@@ -1071,6 +1088,8 @@ export function actionForm(
           ? "Согласовать запрос"
           : action === "analysis"
             ? "Сформировать справку"
+          : action === "select-preventive-attendees"
+            ? "Сохранить состав заседания"
             : action === "create-decision-project"
               ? "Сформировать проект решения"
               : action === "deliver"

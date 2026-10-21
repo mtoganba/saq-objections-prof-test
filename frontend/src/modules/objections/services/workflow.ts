@@ -1,6 +1,11 @@
+Warning: truncated output (original token count: 31915)
+Total output lines: 2952
+
 import { CLOSED, OUTCOMES, ROLES } from "../../../data/constants";
+import { COMMISSION_ATTENDANCE_MEMBERS } from "../../../data/objections";
 import { DEMO_USER } from "../../../config";
 import {
+  isPreventiveControlObjectionType,
   requiresMotivatedResponseType,
   usesStatementReviewScenario,
 } from "../appealTypes";
@@ -480,6 +485,18 @@ export function nextAction(c: ObjectionCase, role?: Role): ActionOption | null {
     certificate_signed: {
       action: "sign-certificate",
       label: "Подписать справку",
+      role: "work",
+    },
+    certificate_approved: isPreventiveControlObjectionType(c.appealType)
+      ? {
+          action: "select-preventive-attendees",
+          label: "Определить состав заседания",
+          role: "work",
+        }
+      : undefined,
+    commission_members: {
+      action: "select-preventive-attendees",
+      label: "Определить состав заседания",
       role: "work",
     },
     commission_voting: {
@@ -1207,15 +1224,18 @@ export function applyAction(
     }
     case "sign-certificate": {
       if (!c.certificate) throw new Error("Справка по доводам не сформирована");
-      c.status = "certificate_approved";
+      const preventiveControl = isPreventiveControlObjectionType(c.appealType);
+      c.status = preventiveControl ? "commission_members" : "certificate_approved";
       title = "Справка подписана";
-      note =
-        "Справка подписана. Опрос о присутствии направляется автоматически при создании заседания.";
+      note = preventiveControl
+        ? "Материалы по обращению автоматически открыты всем членам Апелляционной комиссии. Секретарь определит фактический состав заседания; опрос и повестка дня не формируются."
+        : "Справка подписана. Опрос о присутствии направляется автоматически при создании заседания.";
       if (c.repeatHearingStatus === "required") {
         c.repeatHearingStatus = "ready";
         c.repeatHearingReadyAt = date;
-        note =
-          "Обновлённая справка подписана. Обращение отмечено как готовое к повторному заседанию и будет автоматически включено в ближайшее заседание.";
+        note = preventiveControl
+          ? "Обновлённая справка подписана. Материалы снова открыты всем членам Апелляционной комиссии; секретарь определит состав повторного заседания."
+          : "Обновлённая справка подписана. Обращение отмечено как готовое к повторному заседанию и будет автоматически включено в ближайшее заседание.";
         next.notifications.push({
           id: `repeat-hearing-${c.id}-${next.notifications.length + 1}`,
           caseId: c.id,
@@ -1225,6 +1245,21 @@ export function applyAction(
           read: false,
           kind: "repeat-hearing",
           text: `Обращение №${c.appealNumber || c.id} готово к повторному заседанию. Система включит его в ближайшее заседание автоматически.`,
+        });
+      }
+      if (preventiveControl) {
+        COMMISSION_ATTENDANCE_MEMBERS.forEach((member) => {
+          next.notifications.push({
+            id: `commission-materials-${c.id}-${member.id}-${next.notifications.length + 1}`,
+            caseId: c.id,
+            recipient: member.name,
+            recipientRole: "commission",
+            commissionMemberId: member.id,
+            date,
+            read: false,
+            kind: "commission-materials",
+            text: `Материалы по обращению №${c.appealNumber || c.id} открыты для ознакомления. Секретарь комиссии отметит фактический состав заседания.`,
+          });
         });
       }
       break;
@@ -1241,6 +1276,44 @@ export function applyAction(
       throw new Error(
         "Состав участников определяется ответами в опросе о присутствии",
       );
+    }
+    case "select-preventive-attendees": {
+      if (!isPreventiveControlObjectionType(c.appealType))
+        throw new Error(
+          "Ручной выбор участников применяется только для возражений по профилактическому контролю",
+        );
+      const selected = COMMISSION_ATTENDANCE_MEMBERS.filter((member) =>
+        form.has(`attendee_${member.id}`),
+      );
+      const quorum = Math.ceil(COMMISSION_ATTENDANCE_MEMBERS.length / 2);
+      if (selected.length < quorum)
+        throw new Error(
+          `Для кворума отметьте не менее ${quorum} членов Апелляционной комиссии`,
+        );
+      const selectedMembers = selected.map((member) => ({
+        id: member.id,
+        name: member.name,
+        present: true,
+        isChair: false,
+        recused: false,
+        reason: "",
+      }));
+      const chairId = presidingChairId(selectedMembers);
+      if (!chairId)
+        throw new Error(
+          "В состав заседания включите Вице-министра либо Директора ДАВГА",
+        );
+      selectedMembers.forEach((member) => {
+        member.isChair = member.id === chairId;
+      });
+      c.members = selectedMembers;
+      c.votes = null;
+      c.status = "commission_voting";
+      title = "Состав заседания определён";
+      note =
+        `Секретарь отметил присутствие ${selectedMembers.length} членов Апелляционной комиссии. ` +
+        "Материалы остаются открытыми всей комиссии; голосовать могут отмеченные участники.";
+      break;
     }
     case "commission-vote": {
       const voterId = text("commissionMember", "Голосующий член АК");
@@ -1389,163 +1462,7 @@ export function applyAction(
               savedPositions.get(`${point.id}_${member.id}`)?.comment ||
               savedPositions.get(`legacy_${member.id}`)?.comment ||
               "",
-          ).trim(),
-        })),
-      );
-
-      const allVotesRecorded = disputed(c).every((point) =>
-        c.members.every((member) =>
-          Boolean(normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id])),
-        ),
-      );
-      if (allVotesRecorded) c.status = "meeting_certificate_approved";
-      title = "Справка заполнена результатами голосования";
-      note =
-        "В справке зафиксированы голоса и комментарии участников заседания. Результаты, внесённые вручную, учитываются наравне с электронными голосами.";
-      doc("Справка: результаты голосования членов АК", "certificate", note);
-      break;
-    }
-    case "approve-meeting-certificate": {
-      if (!c.certificate?.memberPositions.length)
-        throw new Error(
-          "Сначала заполните и сохраните справку результатами голосования",
-        );
-      c.status = "meeting_certificate_signed";
-      title = "Справка согласована";
-      note =
-        "Справка по результатам голосования согласована и ожидает подписи исполнителя рабочего органа.";
-      break;
-    }
-    case "sign-meeting-certificate": {
-      if (!c.certificate?.memberPositions.length)
-        throw new Error("Справка результатами голосования не заполнена");
-      c.status = "meeting_certificate_approved";
-      title = "Справка подписана";
-      note =
-        "Справка по результатам голосования подписана. Можно зафиксировать проведение заседания.";
-      break;
-    }
-    case "fill-request-response": {
-      const request = pendingDvgaOrKvgaRequest(c, role);
-      if (!request)
-        throw new Error("Это действие доступно только для запроса в ДВГА/КВГА");
-      request.authorityResponses ||= {};
-      for (const point of disputed(c)) {
-        const finding = text(
-          `authorityFinding_${point.id}`,
-          `Нарушение по пункту ${point.number}`,
-        );
-        const response = text(
-          `authorityResponse_${point.id}`,
-          `Мотивированный ответ по пункту ${point.number}`,
-        );
-        request.authorityResponses[point.id] = { finding, response };
-        point.authorityFinding = finding;
-        point.position = response;
-      }
-      request.responded = date;
-      doc(
-        `Заполненное приложение к запросу в ${request.recipient}`,
-        "authority-response-appendix",
-        `Заполненное приложение к запросу в ${request.recipient}.`,
-        request.id,
-      );
-      note =
-        "Мотивированные ответы ДВГА/КВГА заполнены по всем оспариваемым пунктам.";
-      c.status =
-        requestRoutingStatus(c) || authorityStatus(c) || "response_approval";
-      doc(
-        request.route === "additional-hearing"
-          ? "Дополнительный мотивированный ответ ДВГА/КВГА по дополнительному запросу"
-          : "Мотивированный ответ ДВГА/КВГА",
-        "authority-response",
-        note,
-        request.id,
-      );
-      break;
-    }
-    case "approve-response": {
-      const request = authorityRequestsForRole(c, role).find(
-        (item) => !!item.responded && !item.responseApproved,
-      );
-      if (!request) throw new Error("Нет ответа, ожидающего согласования");
-      request.responseApproved = date;
-      c.status =
-        requestRoutingStatus(c) || authorityStatus(c) || "response_signed";
-      title = "Ответ ДВГА/КВГА согласован";
-      note = "Согласованный ответ ДВГА/КВГА ожидает подписания.";
-      break;
-    }
-    case "sign-response": {
-      const request = authorityRequestsForRole(c, role).find(
-        (item) => !!item.responseApproved && !item.responseSigned,
-      );
-      if (!request) throw new Error("Нет согласованного ответа для подписания");
-      request.responseSigned = date;
-      request.lifecycleStatus = "response_received";
-      const pausedDays = advanceAfterResponses(c, date);
-      if (pausedDays === null)
-        c.status =
-          requestRoutingStatus(c) || authorityStatus(c) || "request_approved";
-      title = "Ответ ДВГА/КВГА подписан";
-      note =
-        pausedDays === null
-          ? "Ответ получен в кабинете SAQ. Обращение ожидает ответы по остальным направленным запросам."
-          : "Все ответы поступили в SAQ. Обращение автоматически переведено на этап «Материалы».";
-      if (pausedDays && pausedDays > 0)
-        note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
-      next.notifications.push({
-        id: `notification-${c.id}-${next.notifications.length + 1}`,
-        caseId: c.id,
-        recipient: ROLES.work,
-        recipientRole: "work",
-        date,
-        read: false,
-        kind: "request-response",
-        text: `Поступил ответ ${request.recipient} на запрос по обращению №${c.appealNumber || c.id}. Откройте обращение для ознакомления.`,
-      });
-      break;
-    }
-    case "position": {
-      if (!allResponsesReadyForConfirmation(c))
-        throw new Error(
-          "Зафиксировать получение можно после поступления ответов на все запросы",
-        );
-      const receivedRequests = c.requests.filter(
-        (request) => !request.confirmed,
-      );
-      if (!receivedRequests.length)
-        throw new Error("Все полученные ответы уже зафиксированы");
-      receivedRequests.forEach((request) => {
-        if (!isDvgaOrKvgaRequest(request.recipient) && !request.responded)
-          request.responded = date;
-        request.confirmed = date;
-      });
-      note = `Рабочий орган зафиксировал получение ответов: ${receivedRequests
-        .map((request) => request.recipient)
-        .join(", ")}.`;
-      if (c.requestPauseStartedAt && canSuspendReview(c)) {
-        const pausedDays = workdaysBetween(c.requestPauseStartedAt, date);
-        if (pausedDays > 0) {
-          c.pauseDays += pausedDays;
-          note += ` Срок рассмотрения продлён на ${pausedDays} раб. дн.`;
-        }
-      }
-      c.requestPauseStartedAt = undefined;
-      if (
-        c.requestRoute === "additional-analysis" ||
-        c.requestRoute === "additional-commission" ||
-        c.requestRoute === "additional-hearing"
-      ) {
-        c.requestRouteCompletedAt = date;
-      }
-      c.status = "materials";
-      doc("Полученные материалы по запросам", "position", note);
-      break;
-    }
-    case "record-external-response": {
-      const requestId = text("externalRequestId", "Запрос другого органа");
-      const request = c.requests.find(
+          ).trim(…1915 tokens truncated…s.find(
         (item) =>
           item.id === requestId &&
           item.template === "other" &&

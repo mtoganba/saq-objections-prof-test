@@ -566,6 +566,7 @@ export default function ActionModal({
         action === "fill-request-response" ||
         action === "analysis" ||
         action === "edit-certificate" ||
+        action === "select-preventive-attendees" ||
         action === "fill-meeting-certificate" ||
         action === "position" ||
         action === "subject-response" ||
