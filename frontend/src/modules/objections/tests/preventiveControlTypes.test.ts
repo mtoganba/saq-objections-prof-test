@@ -473,7 +473,6 @@ test("preventive-control request creates a printed appendix without a letter", (
     c.status = "accepted";
     const form = new FormData();
     form.set("recipient", "ДВГА по г. Астана");
-    form.set("summary", "Оспариваем выводы по акту");
 
     const next = applyAction(state, c.id, "request", "work", form);
     assert.equal(
