@@ -584,7 +584,6 @@ export function actionForm(
           ),
           readOnly: true,
         },
-        { ...area("recommendations", "Рекомендации"), required: false },
       );
       break;
     case "commission-vote":
@@ -715,6 +714,7 @@ export function actionForm(
             defaultChannel,
           ),
         );
+        fields.push(area("decisionProjectText", "Текст проекта решения"));
         if (!subjectCabinetAvailable)
           note =
             "Кабинет заявителя в SAQ не найден. После подписания зафиксируйте внешнее направление: дату, способ, регистрационный номер и подтверждающий файл.";

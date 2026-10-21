@@ -238,6 +238,7 @@ export function DocumentContent({
   certificatePreview,
   protocolPreview,
   finalResponseMajorityByPoint,
+  decisionProjectText,
 }: {
   c: ObjectionCase;
   kind: string;
@@ -256,12 +257,12 @@ export function DocumentContent({
   appendixPreview?: Record<string, string>;
   certificatePreview?: CaseCertificate;
   finalResponseMajorityByPoint?: Record<string, boolean>;
+  decisionProjectText?: string;
   protocolPreview?: {
     date: string;
     number: string;
     audio: string;
     format?: "онлайн, Qosyl" | "офлайн";
-    recommendations?: string;
     members: CommissionMember[];
     votes: Record<string, Record<string, string>>;
     voteReasons?: Record<string, Record<string, string>>;
@@ -742,80 +743,101 @@ export function DocumentContent({
       <div className="final-response-document">
         <article className="print-document final-response-template">
           <div className="final-response-recipient">
-            <p>{snapshot.org}</p>
-            <p>{auditAuthorityKazakhName(snapshot.issuer)}</p>
+            {isDecisionProject ? (
+              <>
+                <p>Заявителю</p>
+                <p>{snapshot.org}</p>
+              </>
+            ) : (
+              <>
+                <p>{snapshot.org}</p>
+                <p>{auditAuthorityKazakhName(snapshot.issuer)}</p>
+              </>
+            )}
           </div>
           <div className="final-response-body">
-            <p>{kazakhDecisionIntro(snapshot)}</p>
-            <p>
-              Заңның 58-4-бабының 2-тармағына сәйкес, қарсылық мемлекеттік аудит
-              объектісі даулайтын мәселелер шегінде қаралады.
-            </p>
-            <p>
-              Апелляциялық комиссия отырысында дауыс беру қорытындысы бойынша
-              қарсылықты {kazakhDecision} туралы шешім қабылдады.
-            </p>
             {isDecisionProject ? (
-              <p>
-                Сіз Қазақстан Республикасы Әкімшілік рәсімдік – процестік
-                кодексінің 73-бабына сәйкес алдын ала шешімге өз ұстанымыңызды
-                білдіруге құқылысыз.
-              </p>
+              <div className="decision-project-authored-text">
+                {decisionProjectText ??
+                  snapshot.decisionProject?.text ??
+                  ""}
+              </div>
             ) : (
-              <p>
-                Жауаппен келіспеген жағдайда, Сіз Қазақстан Республикасы
-                Әкімшілік рәсімдік-процестік кодексінің 91-бабының 6-тармағына
-                сәйкес шешімге шағым жасауға құқылысыз. Екінші мекенжайға
-                мәлімет және жұмыс үшін жолданады.
-              </p>
+              <>
+                <p>{kazakhDecisionIntro(snapshot)}</p>
+                <p>
+                  Заңның 58-4-бабының 2-тармағына сәйкес, қарсылық мемлекеттік аудит
+                  объектісі даулайтын мәселелер шегінде қаралады.
+                </p>
+                <p>
+                  Апелляциялық комиссия отырысында дауыс беру қорытындысы бойынша
+                  қарсылықты {kazakhDecision} туралы шешім қабылдады.
+                </p>
+                <p>
+                  Жауаппен келіспеген жағдайда, Сіз Қазақстан Республикасы
+                  Әкімшілік рәсімдік-процестік кодексінің 91-бабының 6-тармағына
+                  сәйкес шешімге шағым жасауға құқылысыз. Екінші мекенжайға
+                  мәлімет және жұмыс үшін жолданады.
+                </p>
+                <p className="final-response-attachment-note">
+                  Қосымша: {appendixPages} парақта.
+                </p>
+              </>
             )}
-            <p className="final-response-attachment-note">
-              Қосымша: {appendixPages} парақта.
-            </p>
           </div>
-          <div className="final-response-signature">
-            <span>
-              Ішкі мемлекеттік аудит бойынша апелляция департаментінің директоры
-            </span>
-            <b>Ш. Күреңбек тегі</b>
-          </div>
-          <p className="final-response-executor">
-            Орын.:{" "}
-            {snapshot.assignee === "Не назначен"
-              ? DEMO_USER.fullName
-              : snapshot.assignee}
-            <br />
-            Тел.: 70-13-08
-          </p>
+          {isDecisionProject ? (
+            <div className="final-response-signature">
+              <span>Должность подписанта</span>
+              <b>ФИО подписанта</b>
+            </div>
+          ) : (
+            <>
+              <div className="final-response-signature">
+                <span>
+                  Ішкі мемлекеттік аудит бойынша апелляция департаментінің директоры
+                </span>
+                <b>Ш. Күреңбек тегі</b>
+              </div>
+              <p className="final-response-executor">
+                Орын.:{" "}
+                {snapshot.assignee === "Не назначен"
+                  ? DEMO_USER.fullName
+                  : snapshot.assignee}
+                <br />
+                Тел.: 70-13-08
+              </p>
+            </>
+          )}
         </article>
-        <article className="print-document final-response-template final-response-appendix">
-          <h2>Қосымша</h2>
-          {appendixPoints.map((point) => {
-            return (
-              <section
-                className="final-response-appendix-point"
-                key={`${point.number}-${point.title}`}
-              >
-                <p className="final-response-point-title">
-                  - по п. {point.number}:
-                </p>
-                <p className="final-response-point-reason">{point.reason}.</p>
-                <p className="final-response-point-decision">
-                  На основании вышеизложенного, Апелляционной комиссией принято
-                  решение {point.decision}
-                  {point.decidedByMajority ? " большинством голосов" : ""}.
-                </p>
-              </section>
-            );
-          })}
-        </article>
+        {!isDecisionProject && (
+          <article className="print-document final-response-template final-response-appendix">
+            <h2>Қосымша</h2>
+            {appendixPoints.map((point) => {
+              return (
+                <section
+                  className="final-response-appendix-point"
+                  key={`${point.number}-${point.title}`}
+                >
+                  <p className="final-response-point-title">
+                    - по п. {point.number}:
+                  </p>
+                  <p className="final-response-point-reason">{point.reason}.</p>
+                  <p className="final-response-point-decision">
+                    На основании вышеизложенного, Апелляционной комиссией принято
+                    решение {point.decision}
+                    {point.decidedByMajority ? " большинством голосов" : ""}.
+                  </p>
+                </section>
+              );
+            })}
+          </article>
+        )}
       </div>
     );
   }
 
   if (kind === "protocol") {
     const meeting = protocolPreview || snapshot.meeting;
-    const recommendations = meeting?.recommendations?.trim();
     const protocolNumber =
       !protocolPreview && snapshot.meeting?.signed ? meeting?.number : "";
     const members = protocolPreview?.members || snapshot.members;
@@ -979,14 +1001,13 @@ export function DocumentContent({
                           })()}
                     </td>
                     <td>
-                      {protocolPreview?.voteReasons?.[point.id]?.[member.id] ||
-                        (
-                          votes?.[point.id] as
-                            | { voteReasons?: Record<string, string> }
-                            | undefined
-                        )?.voteReasons?.[member.id] ||
-                        member.reason ||
-                        "—"}
+                      {protocolPreview
+                        ? protocolPreview.voteReasons?.[point.id]?.[member.id] || ""
+                        : (
+                            votes?.[point.id] as
+                              | { voteReasons?: Record<string, string> }
+                              | undefined
+                          )?.voteReasons?.[member.id] || ""}
                     </td>
                   </tr>
                 )),
@@ -999,11 +1020,6 @@ export function DocumentContent({
           {formatDate(snapshot.appealDate || snapshot.filed)} года №
           {snapshot.appealNumber || snapshot.document.number}.
         </p>
-        {recommendations && recommendations !== "—" && (
-          <p className="protocol-template-recommendations">
-            Рекомендации: {recommendations}
-          </p>
-        )}
         <div className="protocol-template-signatures">
           {presidingMember ? (
             <p>
@@ -1487,7 +1503,7 @@ export default function DocumentModal(props: {
   const analysisAppendixCss =
     ".analysis-appendix-template h2{text-align:center;font-size:18px;margin:0 0 24px}.analysis-appendix-template th:nth-child(2),.analysis-appendix-template td:nth-child(2){width:32%}.analysis-appendix-template th:nth-child(3),.analysis-appendix-template td:nth-child(3){width:63%}";
   const finalResponseCss =
-    ".final-response-template{box-sizing:border-box;min-height:950px;padding:56px 62px;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1.35}.final-response-template p{white-space:normal}.final-response-recipient{margin:0 0 46px auto;width:54%;text-align:left}.final-response-recipient p{margin:0 0 8px}.final-response-body p{text-align:justify;text-indent:30px;margin:0 0 10px}.final-response-attachment-note{margin-top:30px!important;text-indent:0!important}.final-response-signature{display:grid;grid-template-columns:1fr auto;gap:26px;align-items:end;margin:60px 0 35px}.final-response-signature span{max-width:320px}.final-response-executor{font-size:13px!important;line-height:1.25}.final-response-appendix{break-before:page;page-break-before:always}.final-response-appendix h2{font-family:'Times New Roman',Times,serif;font-size:19px;font-style:italic}.final-response-appendix-point{margin:26px 0}.final-response-point-title{font-weight:700}.final-response-point-reason,.final-response-point-decision{text-align:justify;text-indent:30px}.final-response-point-decision{margin-top:12px!important}";
+    ".final-response-template{box-sizing:border-box;min-height:950px;padding:56px 62px;font-family:'Times New Roman',Times,serif;font-size:16px;line-height:1.35}.final-response-template p{white-space:normal}.decision-project-authored-text{white-space:pre-wrap;text-align:justify;text-indent:0;margin:0 0 10px}.final-response-recipient{margin:0 0 46px auto;width:54%;text-align:left}.final-response-recipient p{margin:0 0 8px}.final-response-body p{text-align:justify;text-indent:30px;margin:0 0 10px}.final-response-attachment-note{margin-top:30px!important;text-indent:0!important}.final-response-signature{display:grid;grid-template-columns:1fr auto;gap:26px;align-items:end;margin:60px 0 35px}.final-response-signature span{max-width:320px}.final-response-executor{font-size:13px!important;line-height:1.25}.final-response-appendix{break-before:page;page-break-before:always}.final-response-appendix h2{font-family:'Times New Roman',Times,serif;font-size:19px;font-style:italic}.final-response-appendix-point{margin:26px 0}.final-response-point-title{font-weight:700}.final-response-point-reason,.final-response-point-decision{text-align:justify;text-indent:30px}.final-response-point-decision{margin-top:12px!important}";
   const certificatePointVotesCss =
     ".certificate-point-votes-table{width:100%;margin:24px 0 12px;table-layout:fixed}.certificate-point-votes-table th,.certificate-point-votes-table td{min-width:0;padding:7px 5px;overflow-wrap:anywhere;word-break:break-word;white-space:normal}.certificate-point-votes-table th{text-align:center;font-size:11px;line-height:1.2}.certificate-point-votes-table td{text-align:center;font-size:12px;line-height:1.25}.certificate-point-votes-table td b{display:inline-block;margin-bottom:8px}";
   const certificateLayoutCss =

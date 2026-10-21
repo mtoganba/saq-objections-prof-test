@@ -3097,17 +3097,15 @@ test("протокол формируется с выбранными участ
   const definition = actionForm("vote", h.c, "2026-09-10", {});
   assert.deepEqual(
     definition.fields.map((field) => field.name),
-    ["protocolDate", "meetingFormat", "secretary", "recommendations"],
+    ["protocolDate", "meetingFormat", "secretary"],
   );
   assert.equal(
-    definition.fields.find((field) => field.name === "recommendations")
-      ?.required,
+    definition.fields.some((field) => field.name === "recommendations"),
     false,
   );
   h.c.status = "meeting";
   h.run("vote", "work", {
     protocolDate: "2026-09-10",
-    recommendations: "Направить замечания в орган аудита.",
     protocolMember_1: "Председатель Апелляционной комиссии: ФИО",
     protocolMember_2: "Эксперт ОЮЛ «АЗК»: ФИО",
     ...Object.fromEntries(
@@ -3128,6 +3126,7 @@ test("протокол формируется с выбранными участ
     ["Председатель Апелляционной комиссии: ФИО", "Эксперт ОЮЛ «АЗК»: ФИО"],
   );
   assert.equal(h.c.meeting?.audio, "");
+  assert.equal(h.c.meeting?.recommendations, undefined);
   assert.deepEqual(h.state.recommendations, []);
   assert.equal(
     h.c.votes?.[h.c.issues.find((point) => point.disputed)!.id]?.yes,
@@ -3139,6 +3138,18 @@ test("протокол формируется с выбранными участ
     ],
     "Отредактированное обоснование по пункту 1.",
   );
+  h.c.members[0].reason = "Старое обоснование из карточки.";
+  const protocolFormHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "vote",
+      c: h.c,
+      date: "2026-09-10",
+      role: "work",
+      onSubmit: () => undefined,
+      onClose: () => undefined,
+    }),
+  );
+  assert.doesNotMatch(protocolFormHtml, /Старое обоснование из карточки/);
   const protocolHtml = renderToStaticMarkup(
     createElement(DocumentContent, {
       c: h.c,
@@ -3164,13 +3175,11 @@ test("протокол формируется с выбранными участ
   );
   assert.doesNotMatch(protocolHtml, /Рекомендации:/);
   assert.match(protocolHtml, /РЕШЕНИЕ частично удовлетворить /);
+  h.c.meeting!.recommendations = "Устаревшая рекомендация не должна печататься.";
   const savedProtocolHtml = renderToStaticMarkup(
     createElement(DocumentContent, { c: h.c, kind: "protocol" }),
   );
-  assert.match(
-    savedProtocolHtml,
-    /Рекомендации: Направить замечания в орган аудита/,
-  );
+  assert.doesNotMatch(savedProtocolHtml, /Рекомендации:/);
   assert.match(
     savedProtocolHtml,
     /Отредактированное обоснование по пункту 1\./,
@@ -3246,7 +3255,7 @@ test("номер регистрации заключения не заполня
   assert.equal(field?.value, "");
 });
 
-test("мотивированный ответ и проект решения формируются на казахском языке", () => {
+test("проект решения печатает введённый секретарём текст, мотивированный ответ сохраняет шаблон", () => {
   const h = harness();
   h.c.appealDate = "2026-10-13";
   h.c.appealNumber = "В-2026-15";
@@ -3278,14 +3287,23 @@ test("мотивированный ответ и проект решения ф�
     createElement(DocumentContent, { c: h.c, kind: "final-response" }),
   );
   const projectHtml = renderToStaticMarkup(
-    createElement(DocumentContent, { c: h.c, kind: "decision-project" }),
+    createElement(DocumentContent, {
+      c: h.c,
+      kind: "decision-project",
+      decisionProjectText: "Текст решения от секретаря АК.",
+    }),
   );
 
   assert.match(finalHtml, /қарсылықты ішінара қанағаттандыру туралы шешім қабылдады/);
   assert.match(finalHtml, /91-бабының 6-тармағына сәйкес/);
-  assert.match(projectHtml, /қарсылықты ішінара қанағаттандыру туралы шешім қабылдады/);
-  assert.match(projectHtml, /73-бабына сәйкес алдын ала шешімге/);
-  assert.doesNotMatch(projectHtml, /91-бабының 6-тармағына сәйкес/);
+  assert.match(projectHtml, /Заявителю/);
+  assert.match(projectHtml, /Текст решения от секретаря АК\./);
+  assert.match(projectHtml, /Должность подписанта/);
+  assert.match(projectHtml, /ФИО подписанта/);
+  assert.doesNotMatch(
+    projectHtml,
+    /58-4-бабы|73-бабына сәйкес|Қосымша:|Ш\. Күреңбек тегі|ДВГА|КВГА/,
+  );
 
   (
     [
@@ -3400,6 +3418,7 @@ test("галочка большинства в мотивированном от
   h.c.status = "decision_project";
 
   h.run("create-decision-project", "work", {
+    decisionProjectText: "Текст проекта, заполненный секретарём АК.",
     [`finalResponseMajority_${firstPoint.id}`]: "on",
   });
   assert.equal(
@@ -3555,6 +3574,7 @@ test("жалоба из E-Otinish проходит проект решения �
   );
 
   h.run("create-decision-project", "work", {
+    decisionProjectText: "Текст проекта, заполненный секретарём АК.",
     projectSubjectChannel: "external",
     [`finalResponseMajority_${h.c.issues.find((point) => point.disputed)!.id}`]:
       "on",
@@ -3563,7 +3583,15 @@ test("жалоба из E-Otinish проходит проект решения �
   const projectHtml = renderToStaticMarkup(
     createElement(DocumentContent, { c: h.c, kind: "decision-project" }),
   );
-  assert.match(projectHtml, /решение удовлетворить большинством голосов\./);
+  assert.equal(
+    h.c.decisionProject?.text,
+    "Текст проекта, заполненный секретарём АК.",
+  );
+  assert.match(projectHtml, /Заявителю/);
+  assert.match(projectHtml, /Текст проекта, заполненный секретарём АК\./);
+  assert.match(projectHtml, /Должность подписанта/);
+  assert.match(projectHtml, /ФИО подписанта/);
+  assert.doesNotMatch(projectHtml, /Қосымша|большинством голосов/);
   assert.deepEqual(nextAction(h.c), {
     action: "approve-decision-project",
     label: "Согласовать проект решения",
@@ -4089,6 +4117,7 @@ test("проект решения направляется только заяв
   h.c.status = "decision_project";
 
   h.run("create-decision-project", "work", {
+    decisionProjectText: "Текст проекта, заполненный секретарём АК.",
     projectSubjectChannel: "external",
   });
   h.run("approve-decision-project", "deputy");
@@ -4187,6 +4216,7 @@ test("заявитель с БИН Объекта №2 получает прое
   h.c.status = "decision_project";
 
   h.run("create-decision-project", "work", {
+    decisionProjectText: "Текст проекта, заполненный секретарём АК.",
     projectSubjectChannel: "saq",
   });
   h.run("approve-decision-project", "deputy");
@@ -4212,6 +4242,10 @@ test("форма проекта решения показывает доступ
     withCabinet.c,
     withCabinet.state.date,
     {},
+  );
+  assert.ok(
+    availableForm.fields.find((field) => field.name === "decisionProjectText")
+      ?.required,
   );
   assert.equal(
     availableForm.fields.find((field) => field.name === "subjectCabinetStatus")?.value,
@@ -4254,6 +4288,7 @@ test("проект решения не направляется в SAQ при о
   h.c.appealType = "Жалоба на уведомление";
   h.c.status = "decision_project";
   h.run("create-decision-project", "work", {
+    decisionProjectText: "Текст проекта, заполненный секретарём АК.",
     projectSubjectChannel: "saq",
   });
 

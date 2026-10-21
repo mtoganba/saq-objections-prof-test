@@ -235,6 +235,11 @@ export interface Delivery {
   recipientRoles?: Role[];
 }
 
+export interface DecisionProject extends Delivery {
+  /** Текст проекта решения, введённый секретарём АК. */
+  text?: string;
+}
+
 /**
  * Направление мотивированного ответа по жалобе или заявлению. В отличие от
  * итогового ответа по возражению, каждый адресат может иметь отдельный
@@ -311,6 +316,7 @@ export interface CaseDocument {
     meeting: Meeting | null;
     hearing: Hearing | null;
     delivery: Delivery | null;
+    decisionProject?: DecisionProject | null;
     certificate: CaseCertificate | null;
     /** Адресаты и их ответы на момент формирования версии документа. */
     requests?: CaseRequest[];
@@ -620,7 +626,7 @@ export interface ObjectionCase {
   motivatedResponseRouting?: MotivatedResponseRouting | null;
   /** Реквизиты регистрации заключения по возражению на уведомление. */
   conclusionRegistration?: { date: string; number: string };
-  decisionProject?: Delivery | null;
+  decisionProject?: DecisionProject | null;
   /** Выбранный при создании проекта решения способ направления заявителю. */
   decisionProjectRecipients?: DecisionProjectRecipient[];
   /** Реквизиты направления проекта решения и замечаний заявителя. */

@@ -891,6 +891,7 @@ export function addDocument(
       hearingSupplements: c.hearingSupplements || [],
       analysisAppendixArgumentsByPoint:
         c.analysisAppendixArgumentsByPoint || {},
+      decisionProject: c.decisionProject || null,
     }),
   });
 }
@@ -2180,9 +2181,6 @@ export function applyAction(
         String(form.get("meetingFormat") || "онлайн, Qosyl") === "офлайн"
           ? "офлайн"
           : "онлайн, Qosyl";
-      const recommendationText = String(
-        form.get("recommendations") || "",
-      ).trim();
       dateObject(protocolDate);
       c.meeting = {
         date: protocolDate,
@@ -2191,7 +2189,6 @@ export function applyAction(
         audio: "",
         format: meetingFormat,
         projectReceived: date,
-        recommendations: recommendationText || undefined,
       };
       c.status = "protocol";
       doc(
@@ -2259,8 +2256,13 @@ export function applyAction(
         requestedSubjectChannel === "saq" && !hasSubjectSaqCabinet(c)
           ? "external"
           : requestedSubjectChannel;
+      const decisionProjectText = text(
+        "decisionProjectText",
+        "Текст проекта решения",
+      );
       c.decisionProject = {
         date,
+        text: decisionProjectText,
         // Для проекта решения исходящий номер не оформляется: его укажут
         // при направлении окончательного ответа.
         number: String(form.get("number") || ""),
@@ -2290,7 +2292,7 @@ export function applyAction(
           : usesStatementScenario(c)
             ? "Проект решения по возражению"
             : "Проект решения по жалобе";
-      doc(decisionProjectName, "decision-project", c.result?.reason || "");
+      doc(decisionProjectName, "decision-project", decisionProjectText);
       break;
     }
     case "approve-decision-project":
