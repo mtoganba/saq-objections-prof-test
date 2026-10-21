@@ -619,6 +619,7 @@ export default function ConsiderationProcess({
     (option) =>
       option.action !== "upload" &&
       option.action !== "vote" &&
+      option.action !== "commission-vote" &&
       option.action !== "fill-meeting-certificate" &&
       option.action !== "supplement" &&
       option.action !== "court" &&
@@ -643,13 +644,18 @@ export default function ConsiderationProcess({
       : next
         ? ROLES[next.role]
         : "";
+  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
+  const manualCommissionVotingAvailable =
+    role === "work" && preventiveCase && c.status === "commission_voting";
   const meetingCertificateAvailable =
+    !preventiveCase &&
     (role === "demo-superuser" || role === "work") &&
     ["commission_voting", "circulated"].includes(c.status);
   const awaitingAttendancePoll = c.status === "certificate_approved";
   const materialsAvailableForCommission = c.status === "documents_review";
-  const meetingCompletionAvailable = !!c.certificate?.memberPositions.length;
-  const preventiveCase = isPreventiveControlObjectionType(c.appealType);
+  const meetingCompletionAvailable =
+    !!c.certificate?.memberPositions.length ||
+    (preventiveCase && c.status === "circulated");
   const commissionMemberReadOnlyDuringMeeting =
     role === "commission" &&
     preventiveCase &&
@@ -867,7 +873,7 @@ export default function ConsiderationProcess({
             <h4>{taskTitle}</h4>
             <p>{TASK_HELP[next.action]}</p>
             <p className="consideration-owner">
-              Исполнитель: <strong>{taskOwner}</strong>
+              Исполнитель: <strong>{manualCommissionVotingAvailable ? "Рабочий орган" : taskOwner}</strong>
             </p>
           </div>
           <div className="consideration-task-action">
@@ -899,7 +905,9 @@ export default function ConsiderationProcess({
                   }
                   title={
                     next.action === "members" && !meetingCompletionAvailable
-                      ? "Сначала заполните и сохраните справку"
+                      ? preventiveCase
+                        ? "Сначала зафиксируйте голоса всех участников заседания"
+                        : "Сначала заполните и сохраните справку"
                       : undefined
                   }
                   onClick={() => onAction(next.action, next.role)}
@@ -908,6 +916,14 @@ export default function ConsiderationProcess({
                 </Button>
               )
             ) : null}
+            {manualCommissionVotingAvailable && (
+              <Button
+                primary
+                onClick={() => onAction("commission-vote", "work")}
+              >
+                Внести голос члена АК вручную
+              </Button>
+            )}
             {meetingCertificateAvailable && (
               <Button
                 primary

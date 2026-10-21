@@ -745,7 +745,10 @@ export function additionalActions(c: ObjectionCase): ActionOption[] {
       label: "Дополнение к возражению",
       role: "work",
     });
-    if (["commission_voting", "meeting"].includes(c.status)) {
+    if (
+      !isPreventiveControlObjectionType(c.appealType) &&
+      ["commission_voting", "meeting"].includes(c.status)
+    ) {
       options.push({
         action: "vote",
         label: "Сформировать протокол заседания",
@@ -758,7 +761,19 @@ export function additionalActions(c: ObjectionCase): ActionOption[] {
           role: "work",
         });
     }
-    if (["commission_voting", "circulated"].includes(c.status))
+    if (
+      isPreventiveControlObjectionType(c.appealType) &&
+      c.status === "commission_voting"
+    )
+      options.push({
+        action: "commission-vote",
+        label: "Внести голос члена АК вручную",
+        role: "work",
+      });
+    if (
+      !isPreventiveControlObjectionType(c.appealType) &&
+      ["commission_voting", "circulated"].includes(c.status)
+    )
       options.push({
         action: "fill-meeting-certificate",
         label: "Заполнить справку",
@@ -874,7 +889,9 @@ export function applyAction(
   const c = next.cases.find((item) => item.id === caseId);
   if (!c) throw new Error("Обращение не найдено");
   const available = [nextAction(c, role), ...additionalActions(c)].find(
-    (item) => item?.action === action,
+    (item) =>
+      item?.action === action &&
+      (role === "demo-superuser" || item.role === role || action === "upload"),
   );
   if (
     !available ||
@@ -1378,6 +1395,10 @@ export function applyAction(
       break;
     }
     case "fill-meeting-certificate": {
+      if (isPreventiveControlObjectionType(c.appealType))
+        throw new Error(
+          "Для возражений по профилактическому контролю справка по голосам не формируется",
+        );
       if (!c.certificate)
         throw new Error("Сначала сформируйте и направьте справку членам АК");
       if (!c.members.length)
@@ -1818,7 +1839,21 @@ export function applyAction(
     }
     case "members":
       if (form.has("meetingConducted")) {
-        if (!c.certificate?.memberPositions.length)
+        const preventiveCase = isPreventiveControlObjectionType(c.appealType);
+        const allVotesRecorded =
+          c.members.length > 0 &&
+          disputed(c).every((point) =>
+            c.members.every((member) =>
+              Boolean(
+                normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]),
+              ),
+            ),
+          );
+        if (preventiveCase && !allVotesRecorded)
+          throw new Error(
+            "Сначала зафиксируйте голоса всех участников заседания",
+          );
+        if (!preventiveCase && !c.certificate?.memberPositions.length)
           throw new Error("Сначала заполните и сохраните справку");
         c.memberPosition = "Заседание по данному делу проведено.";
         c.status = "meeting";

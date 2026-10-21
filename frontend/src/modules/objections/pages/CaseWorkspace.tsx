@@ -1475,7 +1475,16 @@ export default function CaseWorkspace({
                         // Every certificate keeps an immutable snapshot.  The newest
                         // version is listed first so it is the one the user sees first.
                         const certificates = c.documents
-                          .filter((document) => document.kind === "certificate")
+                          .filter(
+                            (document) =>
+                              document.kind === "certificate" &&
+                              !(
+                                isPreventiveControlObjectionType(c.appealType) &&
+                                document.name.startsWith(
+                                  "Справка: результаты голосования членов АК",
+                                )
+                              ),
+                          )
                           .slice()
                           .reverse();
                         return certificates.length ? (

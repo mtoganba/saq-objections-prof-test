@@ -3,6 +3,7 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { initialState } from "../../../api/objectionsRepository";
+import { COMMISSION_ATTENDANCE_MEMBERS } from "../../../data/objections";
 import type { ObjectionCase } from "../../../types";
 import {
   PREVENTIVE_CONTROL_ACT_OBJECTION,
@@ -10,8 +11,13 @@ import {
   preventiveControlSourceDocumentLabels,
 } from "../appealTypes";
 import { actionForm } from "../formDefinitions";
+import ConsiderationProcess from "../components/ConsiderationProcess";
 import { reviewDuration } from "../services/deadlines";
-import { additionalActions, nextAction } from "../services/workflow";
+import {
+  additionalActions,
+  applyAction,
+  nextAction,
+} from "../services/workflow";
 import {
   agendaOrProtocolIntro,
   certificateTemplateIntro,
@@ -116,6 +122,97 @@ test("preventive-control objections use the statement review scenario", () => {
     c.status = "decided";
     assert.equal(nextAction(c)?.label, "Сформировать мотивированный ответ");
   }
+});
+
+test("preventive-control meeting records commission votes without a meeting certificate", () => {
+  let state = initialState();
+  const c = state.cases[0];
+  c.appealType = PREVENTIVE_CONTROL_ACT_OBJECTION;
+  c.status = "commission_members";
+  c.members = [];
+  c.votes = null;
+  c.certificate = null;
+  c.documents = [];
+
+  const attendees = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7);
+  const attendanceForm = new FormData();
+  attendees.forEach((member) => attendanceForm.set(`attendee_${member.id}`, "on"));
+  state = applyAction(
+    state,
+    c.id,
+    "select-preventive-attendees",
+    "work",
+    attendanceForm,
+  );
+
+  const meetingCase = state.cases[0];
+  assert.equal(meetingCase.status, "commission_voting");
+  assert.equal(nextAction(meetingCase, "commission")?.action, "commission-vote");
+  assert.ok(
+    additionalActions(meetingCase).some(
+      (action) =>
+        action.action === "commission-vote" && action.role === "work",
+    ),
+  );
+  assert.ok(
+    additionalActions(meetingCase).every(
+      (action) => action.action !== "fill-meeting-certificate",
+    ),
+  );
+
+  const disputedPoints = meetingCase.issues.filter((point) => point.disputed);
+  assert.ok(disputedPoints.length > 0);
+  for (const member of meetingCase.members) {
+    const voteForm = new FormData();
+    voteForm.set("commissionMember", member.id);
+    disputedPoints.forEach((point) =>
+      voteForm.set(`commissionVote_${point.id}`, "accept"),
+    );
+    state = applyAction(
+      state,
+      c.id,
+      "commission-vote",
+      "work",
+      voteForm,
+    );
+  }
+
+  assert.equal(state.cases[0].status, "circulated");
+  const meetingForm = new FormData();
+  meetingForm.set("meetingConducted", "on");
+  state = applyAction(state, c.id, "members", "work", meetingForm);
+  assert.equal(state.cases[0].status, "meeting");
+  assert.ok(
+    state.cases[0].documents.every(
+      (document) =>
+        document.name !== "Справка: результаты голосования членов АК",
+    ),
+  );
+});
+
+test("preventive-control meeting shows manual voting without a certificate action", () => {
+  const c = preventiveCase(PREVENTIVE_CONTROL_ACT_OBJECTION);
+  c.status = "commission_voting";
+  c.members = COMMISSION_ATTENDANCE_MEMBERS.slice(0, 7).map((member) => ({
+    ...member,
+    present: true,
+    isChair: member.id === "kenbeil-dm",
+    recused: false,
+    reason: "",
+  }));
+  const html = renderToStaticMarkup(
+    createElement(ConsiderationProcess, {
+      c,
+      role: "work",
+      onAction() {},
+      onHistory() {},
+      hideStages: true,
+    }),
+  );
+
+  assert.match(html, /Внести голос члена АК вручную/);
+  assert.doesNotMatch(html, /Заполнить справку/);
+  assert.doesNotMatch(html, /Печатная форма.*голосования АК/);
 });
 
 test("documents name the disputed preventive-control act or prescription", () => {
