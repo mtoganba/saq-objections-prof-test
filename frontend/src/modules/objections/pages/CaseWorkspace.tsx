@@ -1059,13 +1059,6 @@ export default function CaseWorkspace({
                       wide
                     />
                   )}
-                  {c.applicantRequirements && (
-                    <Fact
-                      label="Требования заявителя"
-                      value={c.applicantRequirements}
-                      wide
-                    />
-                  )}
                   <Fact
                     label={
                       c.appealType === "Заявление"
