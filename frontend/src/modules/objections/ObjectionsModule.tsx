@@ -46,7 +46,11 @@ import {
   useObjectionsModel,
 } from "./useObjectionsModel";
 import { formatDateTime } from "../../utils/dateFormat";
-import { isSubjectRole, subjectRoleForCase } from "./services/saqCabinets";
+import {
+  canViewCaseBeforeSaqExecutorAssignment,
+  isSubjectRole,
+  subjectRoleForCase,
+} from "./services/saqCabinets";
 import {
   isPreventiveControlObjectionType,
   preventiveControlMaterialsOpen,
@@ -351,6 +355,10 @@ export default function ObjectionsModule() {
     setDialogError("");
   };
   const openCase = (c: ObjectionCase) => {
+    if (!canViewCaseBeforeSaqExecutorAssignment(c, model.role)) {
+      model.setToast("Карточка обращения недоступна.");
+      return;
+    }
     if (model.role === "commission" && !commissionCanOpenCase(c.id)) {
       model.setToast(
         isPreventiveControlObjectionType(c.appealType)
@@ -2109,7 +2117,9 @@ export default function ObjectionsModule() {
       )}
       {model.route.page === "detail" &&
         (c ? (
-          model.role === "commission" && !commissionCanOpenCase(c.id) ? (
+          !canViewCaseBeforeSaqExecutorAssignment(c, model.role) ? (
+            <Notice tone="amber">Карточка обращения недоступна.</Notice>
+          ) : model.role === "commission" && !commissionCanOpenCase(c.id) ? (
             <Notice tone="amber">
               {isPreventiveControlObjectionType(c.appealType)
                 ? "Материалы обращения откроются членам АК после перехода на этап заседания."

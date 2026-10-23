@@ -53,6 +53,7 @@ import ActionModal from "../components/ActionModal";
 import { caseCsv } from "../../../utils/download";
 import { auditAuthorityFullName } from "../../../utils/auditAuthority";
 import { pathForRoute, routeFromPath } from "../routing";
+import { canViewCaseBeforeSaqExecutorAssignment } from "../services/saqCabinets";
 import { DEMO_USER } from "../../../config";
 import { actionForm } from "../formDefinitions";
 import {
@@ -1773,8 +1774,61 @@ test("совместимость сохранения, прямые ссылки
     ...state.cases[0],
     status: "received" as const,
     channel: "SAQ",
+    assignee: "Не назначен",
+    submittedViaSaqApplicant: true,
+    bin: "001002003004",
     unread: true,
   };
+  assert.equal(
+    canViewCaseBeforeSaqExecutorAssignment(incomingForDirector, "director"),
+    true,
+  );
+  assert.equal(
+    canViewCaseBeforeSaqExecutorAssignment(incomingForDirector, "work"),
+    false,
+  );
+  assert.equal(
+    canViewCaseBeforeSaqExecutorAssignment(incomingForDirector, "subject2"),
+    true,
+  );
+  const workRegistry = renderToStaticMarkup(
+    createElement(CasesList, {
+      cases: [incomingForDirector],
+      date: state.date,
+      role: "work",
+      onOpen() {},
+      onCreate() {},
+      onExport() {},
+    }),
+  );
+  assert.doesNotMatch(workRegistry, /ВОЗ-2026-101/);
+  const applicantRegistry = renderToStaticMarkup(
+    createElement(CasesList, {
+      cases: [incomingForDirector],
+      date: state.date,
+      role: "subject2",
+      onOpen() {},
+      onCreate() {},
+      onExport() {},
+    }),
+  );
+  assert.match(applicantRegistry, /ВОЗ-2026-101/);
+  const assignedForWork = {
+    ...incomingForDirector,
+    status: "accepted" as const,
+    assignee: "Исполнитель ДАВГА",
+  };
+  const assignedRegistry = renderToStaticMarkup(
+    createElement(CasesList, {
+      cases: [assignedForWork],
+      date: state.date,
+      role: "work",
+      onOpen() {},
+      onCreate() {},
+      onExport() {},
+    }),
+  );
+  assert.match(assignedRegistry, /ВОЗ-2026-101/);
   const registry = renderToStaticMarkup(
     createElement(CasesList, {
       cases: [incomingForDirector],
@@ -2655,6 +2709,18 @@ test("справка формируется с отдельными довода
   assert.match(commissionCabinetHtml, /Ответ ДВГА/);
   // Состав поступает из опроса о присутствии; в сценарии подтверждены два участника.
   h.c.members = h.c.members.slice(0, 2);
+  const commissionVoteFormHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "commission-vote",
+      c: h.c,
+      date: h.state.date,
+      role: "commission",
+      commissionMemberId: "chair",
+      onSubmit() {},
+      onClose() {},
+    }),
+  );
+  assert.match(commissionVoteFormHtml, /<th>Комментарий<\/th>/);
   h.run("commission-vote", "commission", {
     commissionMember: "chair",
     ...Object.fromEntries(
@@ -2679,11 +2745,30 @@ test("справка формируется с отдельными довода
     ),
   });
   assert.equal(h.c.status, "circulated");
+  const firstDisputedPoint = h.c.issues.find((point) => point.disputed)!;
   assert.equal(
-    h.c.votes?.[h.c.issues.find((point) => point.disputed)!.id]?.voteReasons?.[
-      "chair"
-    ],
+    h.c.votes?.[firstDisputedPoint.id]?.voteReasons?.["chair"],
     "Обоснование председателя",
+  );
+  const fillCertificateFormHtml = renderToStaticMarkup(
+    createElement(ActionModal, {
+      action: "fill-meeting-certificate",
+      c: h.c,
+      date: h.state.date,
+      role: "work",
+      onSubmit() {},
+      onClose() {},
+    }),
+  );
+  const linkedCommentName =
+    "meetingCertificateComment_" + firstDisputedPoint.id + "_chair";
+  assert.match(
+    fillCertificateFormHtml,
+    new RegExp(
+      'name="' +
+        linkedCommentName +
+        '"[^>]*>Обоснование председателя</textarea>',
+    ),
   );
   assert.throws(
     () => h.run("members", "work", { meetingConducted: "on" }),
@@ -2709,6 +2794,10 @@ test("справка формируется с отдельными довода
   assert.equal(h.c.certificate?.memberPositions[0]?.result, "accept");
   assert.equal(
     h.c.certificate?.memberPositions[0]?.comment,
+    "Комментарий председателя",
+  );
+  assert.equal(
+    h.c.votes?.[firstDisputedPoint.id]?.voteReasons?.chair,
     "Комментарий председателя",
   );
   assert.equal(h.c.status, "meeting_certificate_approval");

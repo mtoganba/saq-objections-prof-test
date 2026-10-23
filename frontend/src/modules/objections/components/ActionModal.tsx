@@ -256,6 +256,17 @@ function ProtocolVotesFields({
   );
 }
 
+function memberCommentForPoint(c: ObjectionCase, pointId: string, memberId: string) {
+  const voteComment = c.votes?.[pointId]?.voteReasons?.[memberId];
+  if (voteComment !== undefined) return voteComment;
+  const positions = c.certificate?.memberPositions || [];
+  return (
+    positions.find((position) => position.id === memberId && position.pointId === pointId)?.comment ??
+    positions.find((position) => position.id === memberId && !position.pointId)?.comment ??
+    ""
+  );
+}
+
 function MeetingCertificateFields({
   c,
   values,
@@ -263,12 +274,6 @@ function MeetingCertificateFields({
   c: ObjectionCase;
   values: FormValues;
 }) {
-  const savedPositions = new Map(
-    (c.certificate?.memberPositions || []).map((position) => [
-      `${position.pointId || "legacy"}_${position.id}`,
-      position,
-    ]),
-  );
   if (!c.members.length)
     return (
       <Notice tone="amber">
@@ -299,7 +304,6 @@ function MeetingCertificateFields({
           <tbody>
             {disputed(c).flatMap((point) => c.members.map((member, index) => {
               const electronic = normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]);
-              const saved = savedPositions.get(`${point.id}_${member.id}`) || savedPositions.get(`legacy_${member.id}`);
               const resultName = `meetingCertificateResult_${point.id}_${member.id}`;
               const commentName = `meetingCertificateComment_${point.id}_${member.id}`;
               return (
@@ -309,7 +313,7 @@ function MeetingCertificateFields({
                   <td>{member.name}</td>
                   <td>{electronic ? OUTCOMES[electronic] : <span className="muted">Нет голоса</span>}</td>
                   <td><select name={resultName} defaultValue={values[resultName] || ""}><option value="">Не изменять</option>{Object.entries(OUTCOMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></td>
-                  <td><textarea name={commentName} defaultValue={values[commentName] ?? saved?.comment ?? ""} rows={2} aria-label={`Комментарий ${member.name} по пункту ${point.number}`} /></td>
+                  <td><textarea name={commentName} defaultValue={values[commentName] ?? memberCommentForPoint(c, point.id, member.id)} rows={2} aria-label={`Комментарий ${member.name} по пункту ${point.number}`} /></td>
                 </tr>
               );
             }))}
@@ -348,16 +352,10 @@ export default function ActionModal({
       return { ...(c.requestDrafts?.[action]?.values || {}) };
     if (action === "analysis") return { ...(c.analysisDraft?.values || {}) };
     if (action === "fill-meeting-certificate") {
-      const savedPositions = new Map(
-        (c.certificate?.memberPositions || []).map((position) => [
-          `${position.pointId || "legacy"}_${position.id}`,
-          position,
-        ]),
-      );
       return Object.fromEntries(
         disputed(c).flatMap((point) => c.members.map((member) => [
           `meetingCertificateComment_${point.id}_${member.id}`,
-          savedPositions.get(`${point.id}_${member.id}`)?.comment || savedPositions.get(`legacy_${member.id}`)?.comment || "",
+          memberCommentForPoint(c, point.id, member.id),
         ])),
       );
     }
@@ -1394,7 +1392,7 @@ export default function ActionModal({
                     <th>Фамилия, инициалы</th>
                     <th>Описание оспариваемого вопроса</th>
                     <th>Голос</th>
-                    <th>Обоснование</th>
+                    <th>Комментарий</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1406,7 +1404,7 @@ export default function ActionModal({
                       const voteName = `commissionVote_${point.id}_${member.id}`;
                       const reasonName = `commissionReason_${point.id}_${member.id}`;
                       const savedReason =
-                        c.votes?.[point.id]?.voteReasons?.[member.id]?.trim() || "";
+                        memberCommentForPoint(c, point.id, member.id).trim();
                       const canEnterVote =
                         !savedVote &&
                         (role !== "commission" ||
@@ -1466,15 +1464,15 @@ export default function ActionModal({
                                     : "commission-vote-no-reason"
                                 }
                               >
-                                {savedReason || "Обоснование не указано"}
+                                {savedReason || "Комментарий не указан"}
                               </span>
                             ) : canEnterVote ? (
                               <textarea
                                 name={reasonName}
-                                defaultValue={values[reasonName] || ""}
+                                defaultValue={values[reasonName] ?? savedReason}
                                 rows={2}
-                                placeholder="Краткое обоснование решения"
-                                aria-label={`Обоснование ${member.name} по пункту ${point.number}`}
+                                placeholder="Комментарий к голосу"
+                                aria-label={`Комментарий ${member.name} по пункту ${point.number}`}
                               />
                             ) : (
                               <span className="commission-vote-no-reason">—</span>

@@ -22,6 +22,31 @@ export function isSubjectRole(role: Role) {
   return role === "subject" || role === "subject2";
 }
 
+/** Pending SAQ submissions stay in the director's intake queue until assignment. */
+export function isSaqCaseAwaitingExecutorAssignment(
+  c: Pick<ObjectionCase, "channel" | "assignee">,
+) {
+  const assignee = (c.assignee || "").trim().toLowerCase();
+  return (
+    (c.channel || "").trim().toUpperCase() === "SAQ" &&
+    (!assignee || assignee === "не назначен")
+  );
+}
+
+/** Applicants retain access to their own submission while internal users wait for assignment. */
+export function canViewCaseBeforeSaqExecutorAssignment(
+  c: Pick<ObjectionCase, "channel" | "assignee" | "bin">,
+  role: Role,
+) {
+  if (
+    !isSaqCaseAwaitingExecutorAssignment(c) ||
+    role === "director" ||
+    role === "demo-superuser"
+  )
+    return true;
+  return isSubjectRole(role) && subjectRoleForCase(c) === role;
+}
+
 /** Определяет кабинет SAQ по БИН/ИИН физического или юридического лица. */
 export function subjectRoleForIdentifier(identifier?: string): "subject" | "subject2" {
   return normalizedIdentifier(identifier) === SUBJECT_2_IDENTIFIER

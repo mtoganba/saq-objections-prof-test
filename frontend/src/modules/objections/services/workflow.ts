@@ -1564,11 +1564,11 @@ export function applyAction(
             ),
           );
           const comment = String(
-            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ||
-              form.get(`meetingCertificateComment_${member.id}`) ||
+            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ??
+              form.get(`meetingCertificateComment_${member.id}`) ??
+              c.votes[point.id]?.voteReasons?.[member.id] ??
               "",
           ).trim();
-          if (!manualResult) continue;
           const result = c.votes[point.id] || {
             yes: 0,
             no: 0,
@@ -1581,7 +1581,7 @@ export function applyAction(
           };
           result.votes ||= {};
           result.voteReasons ||= {};
-          result.votes[member.id] = manualResult;
+          if (manualResult) result.votes[member.id] = manualResult;
           result.voteReasons[member.id] = comment;
           const recordedVotes = c.members.map((item) =>
             normalizeVoteChoice(result.votes![item.id]),
@@ -1617,10 +1617,11 @@ export function applyAction(
           pointNumber: point.number,
           result: normalizeVoteChoice(c.votes?.[point.id]?.votes?.[member.id]),
           comment: String(
-            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ||
-              form.get(`meetingCertificateComment_${member.id}`) ||
-              savedPositions.get(`${point.id}_${member.id}`)?.comment ||
-              savedPositions.get(`legacy_${member.id}`)?.comment ||
+            form.get(`meetingCertificateComment_${point.id}_${member.id}`) ??
+              form.get(`meetingCertificateComment_${member.id}`) ??
+              c.votes?.[point.id]?.voteReasons?.[member.id] ??
+              savedPositions.get(`${point.id}_${member.id}`)?.comment ??
+              savedPositions.get(`legacy_${member.id}`)?.comment ??
               "",
           ).trim(),
         })),

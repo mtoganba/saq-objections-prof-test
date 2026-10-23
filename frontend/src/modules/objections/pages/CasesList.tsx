@@ -5,7 +5,11 @@ import type { CaseStatus, ObjectionCase, Role } from "../../../types";
 import { formatDate } from "../../../utils/dateFormat";
 import { applicantIdentifierType } from "../services/appealTemplates";
 import { executionDeadline, reviewDeadline } from "../services/deadlines";
-import { isSubjectRole, subjectRoleForCase } from "../services/saqCabinets";
+import {
+  canViewCaseBeforeSaqExecutorAssignment,
+  isSubjectRole,
+  subjectRoleForCase,
+} from "../services/saqCabinets";
 import { PREVENTIVE_CONTROL_OBJECTION_TYPES } from "../appealTypes";
 
 const APPEAL_TYPE_OPTIONS = PREVENTIVE_CONTROL_OBJECTION_TYPES;
@@ -124,13 +128,16 @@ export default function CasesList({
   const authorityRole = isAuthorityRole(role);
   const subjectRole = isSubjectRole(role);
   const recipientRole = authorityRole || subjectRole;
+  const accessibleCases = cases.filter((c) =>
+    canViewCaseBeforeSaqExecutorAssignment(c, role),
+  );
   const registryCases = authorityRole
-    ? cases.filter((c) =>
+    ? accessibleCases.filter((c) =>
         c.requests.some((request) => isRequestForAuthority(request, role)) ||
         hasFinalResponseForRecipient(c, role),
       )
     : subjectRole
-      ? cases.filter(
+      ? accessibleCases.filter(
           (c) =>
             hasFinalResponseForRecipient(c, role) ||
             (subjectRoleForCase(c) === role &&
@@ -138,7 +145,7 @@ export default function CasesList({
                 c.requests.some(isRequestForSubject) ||
                 c.decisionProjectRouting?.channel === "saq")),
         )
-    : cases;
+    : accessibleCases;
   const recipientRequests = registryCases.flatMap((c) =>
     c.requests.filter((request) =>
       authorityRole
@@ -164,26 +171,26 @@ export default function CasesList({
     | "hearing-waiting"
     | "final-response"
   >("all");
-  const incomingCount = cases.filter(
+  const incomingCount = registryCases.filter(
     (c) => c.status === "received" && c.channel === "SAQ" && c.unread,
   ).length;
   const requestDirectionCount = countCasesByStatus(
-    cases,
+    registryCases,
     REQUEST_DIRECTION_STATUSES,
   );
   const responseWaitingCount = countCasesByStatus(
-    cases,
+    registryCases,
     RESPONSE_WAITING_STATUSES,
   );
-  const analysisCount = countCasesByStatus(cases, ANALYSIS_STATUSES);
-  const meetingCount = countCasesByStatus(cases, MEETING_STATUSES);
-  const protocolFormationCount = cases.filter((c) => c.status === "meeting").length;
-  const protocolSigningCount = cases.filter((c) => c.status === "protocol").length;
+  const analysisCount = countCasesByStatus(registryCases, ANALYSIS_STATUSES);
+  const meetingCount = countCasesByStatus(registryCases, MEETING_STATUSES);
+  const protocolFormationCount = registryCases.filter((c) => c.status === "meeting").length;
+  const protocolSigningCount = registryCases.filter((c) => c.status === "protocol").length;
   const hearingWaitingCount = countCasesByStatus(
-    cases,
+    registryCases,
     HEARING_WAITING_STATUSES,
   );
-  const finalResponseCount = countCasesByStatus(cases, FINAL_RESPONSE_STATUSES);
+  const finalResponseCount = countCasesByStatus(registryCases, FINAL_RESPONSE_STATUSES);
   const visible = useMemo(() => {
     const filtered = registryCases.filter((c) => {
         const matchesQuery = `${c.id} ${c.appealNumber} ${c.org} ${c.bin} ${c.assignee}`
@@ -284,22 +291,22 @@ export default function CasesList({
           ],
         ]
     : [
-        [cases.length, "Всего обращений", "зарегистрировано в реестре", "blue"],
+        [registryCases.length, "Всего обращений", "зарегистрировано в реестре", "blue"],
         [
-          cases.filter((c) => c.status === "received").length,
+          registryCases.filter((c) => c.status === "received").length,
           "Поступило",
           "новых обращений",
           "green",
         ],
         [
-          cases.filter((c) => !CLOSED.includes(c.status) && c.status !== "received")
+          registryCases.filter((c) => !CLOSED.includes(c.status) && c.status !== "received")
             .length,
           "На рассмотрении",
           "обращений находится в работе",
           "yellow",
         ],
         [
-          cases.filter((c) => CLOSED.includes(c.status)).length,
+          registryCases.filter((c) => CLOSED.includes(c.status)).length,
           "Завершено",
           "рассмотрение завершено",
           "violet",
@@ -349,7 +356,7 @@ export default function CasesList({
           >
             Все
           </button>
-          {(role === "demo-superuser" || role === "director" || role === "deputy" || role === "work") && (
+          {(role === "demo-superuser" || role === "director") && (
             <button
               className={tab === "incoming" ? "active" : ""}
               type="button"
